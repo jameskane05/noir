@@ -23,11 +23,11 @@ const spark = new SparkRenderer({ renderer });
 scene.add(spark);
 
 // Load and add the SplatMesh
-const splatURL = await getAssetFileURL("factory.ply");
+const splatURL = await getAssetFileURL("factory.spz");
 const factory = new SplatMesh({ url: splatURL });
 factory.quaternion.set(1, 0, 0, 0);
 factory.position.set(0, 0, 0);
-factory.scale.set(4, 4, 4);
+factory.scale.set(5, 5, 5);
 scene.add(factory);
 
 // Removed visible floor mesh; physics floor exists via Rapier collider
