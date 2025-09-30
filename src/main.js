@@ -23,7 +23,7 @@ const spark = new SparkRenderer({ renderer });
 scene.add(spark);
 
 // Load and add the SplatMesh
-const splatURL = await getAssetFileURL("factory.spz");
+const splatURL = await getAssetFileURL("street.ply");
 const factory = new SplatMesh({ url: splatURL });
 factory.quaternion.set(1, 0, 0, 0);
 factory.position.set(0, 0, 0);

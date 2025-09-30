@@ -67,36 +67,36 @@ export class LightingSystem {
     // glowing embers around the factory
     this.createLight(
       this.emberLayer,
-      new THREE.Vector3(0.5, 1.0, 0.5),
-      new THREE.Color(1, 0.6, 0.4),
-      0.75,
+      new THREE.Vector3(0.5, 1.0, -20),
+      new THREE.Color(1, 0.6, 0.4), // Warm orange-red ember glow (RGB: red=1.0, green=0.6, blue=0.4)
+      10,
       1
     );
 
-    // Main industrial light source
-    this.createLight(
-      this.lightingLayer,
-      new THREE.Vector3(0.3, 1.1, 0.6),
-      new THREE.Color(1, 0.95, 0.2),
-      1.6,
-      0
-    );
+    // // Main industrial light source
+    // this.createLight(
+    //   this.lightingLayer,
+    //   new THREE.Vector3(0.3, 1.1, 0.6),
+    //   new THREE.Color(1, 0.95, 0.2), // Bright yellow industrial light (RGB: red=1.0, green=0.95, blue=0.2)
+    //   1.6,
+    //   0
+    // );
 
-    // ambient light throughout the scene
-    this.createLight(
-      this.ambientLayer,
-      new THREE.Vector3(0, 1, 1),
-      new THREE.Color(1, 0.8, 0.6),
-      6,
-      0.8
-    );
+    // // ambient light throughout the scene
+    // this.createLight(
+    //   this.ambientLayer,
+    //   new THREE.Vector3(0, 1, 1),
+    //   new THREE.Color(1, 0.8, 0.6), // Warm white ambient light (RGB: red=1.0, green=0.8, blue=0.6)
+    //   6,
+    //   0.8
+    // );
   }
 
   updateFlickering(timeSeconds) {
     // Create flickering fire effect
-    const baseHue = 0.04; // Orange-red base hue
-    const fireHue = 0.03; // Yellow base hue
-    const hueVariation = 0.03; // Slight variation in hue
+    const baseHue = 0.04; // Orange-red base hue (HSL hue: 0.04 = ~14.4°, orange-red range)
+    const fireHue = 0.03; // Yellow base hue (HSL hue: 0.03 = ~10.8°, yellow-orange range)
+    const hueVariation = 0.03; // Slight variation in hue (±10.8° color shift)
 
     // Add some randomness to the flicker
     const randomFlicker = Math.sin(timeSeconds * 4) * 0.5 + 0.5;
@@ -109,16 +109,17 @@ export class LightingSystem {
     const combinedFlicker = (slowFlicker + mediumFlicker + fastFlicker) / 3;
 
     for (let i = 0; i < this.lights.length - 1; i++) {
-      const h = baseHue + combinedFlicker * hueVariation; // Slightly varying orange-red hue
-      const s = 0.5 + randomFlicker * 0.3; // High saturation with slight variation
-      const l = 0.5 + combinedFlicker * 0.2; // Varying brightness
+      const h = baseHue + combinedFlicker * hueVariation; // Slightly varying orange-red hue (dynamic fire colors)
+      const s = 0.5 + randomFlicker * 0.3; // High saturation with slight variation (50-80% saturation)
+      const l = 0.5 + combinedFlicker * 0.2; // Varying brightness (50-70% lightness)
       this.lights[i].color.setHSL(h, s, l);
     }
 
+    // Apply flickering to the ambient light with fixed saturation
     this.lights[this.lights.length - 1].color.setHSL(
-      baseHue,
-      0.5,
-      combinedFlicker
+      baseHue, // Orange-red base hue
+      0.5, // Fixed 50% saturation
+      combinedFlicker // Variable brightness based on flicker
     );
   }
 }

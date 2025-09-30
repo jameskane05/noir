@@ -1,14 +1,11 @@
 {
   "factory.spz": {
-    "url": "/factory.spz",
-    "directory": "splats"
+    "url": "/factory.spz"
   },
-  "sky.jpeg": {
-    "url": "https://sparkjs.dev/assets/images/sky.jpeg",
-    "directory": "images"
+  "street.spz": {
+    "url": "/street.spz"
   },
-  "star.png": {
-    "url": "https://sparkjs.dev/assets/images/star.png",
-    "directory": "images"
+  "street.ply": {
+    "url": "/street.ply"
   }
 }
