@@ -20,20 +20,6 @@ export class LightingSystem {
     });
     scene.add(this.emberLayer);
 
-    this.lightingLayer = new SplatEdit({
-      rgbaBlendMode: SplatEditRgbaBlendMode.ADD_RGBA,
-      sdfSmooth: 0.1,
-      softEdge: 1.4,
-    });
-    scene.add(this.lightingLayer);
-
-    this.ambientLayer = new SplatEdit({
-      rgbaBlendMode: SplatEditRgbaBlendMode.DARKEN,
-      sdfSmooth: 0.1,
-      softEdge: 0.05,
-    });
-    scene.add(this.ambientLayer);
-
     // Initialize the lights
     this.setupLights();
   }
@@ -68,7 +54,7 @@ export class LightingSystem {
     this.createLight(
       this.emberLayer,
       new THREE.Vector3(0.5, 1.0, -20),
-      new THREE.Color(1, 0.6, 0.4), // Warm orange-red ember glow (RGB: red=1.0, green=0.6, blue=0.4)
+      new THREE.Color(1, 1, 1), // White light (RGB: red=1.0, green=1.0, blue=1.0)
       10,
       1
     );
@@ -98,28 +84,48 @@ export class LightingSystem {
     const fireHue = 0.03; // Yellow base hue (HSL hue: 0.03 = ~10.8°, yellow-orange range)
     const hueVariation = 0.03; // Slight variation in hue (±10.8° color shift)
 
-    // Add some randomness to the flicker
-    const randomFlicker = Math.sin(timeSeconds * 4) * 0.5 + 0.5;
+    // Create abrupt, randomized jumps instead of smooth transitions
+    // Use floor functions to create stepped values that jump suddenly
+    const jump1 = Math.floor(Math.sin(timeSeconds * 8.7) * 3) / 3; // Big random jumps
+    const jump2 = Math.floor(Math.sin(timeSeconds * 15.3) * 5) / 5; // More frequent jumps
+    const jump3 = Math.floor(Math.cos(timeSeconds * 6.2) * 4) / 4; // Another jump pattern
 
-    // we'll combine these to make a more natural flickering effect
-    const mediumFlicker = Math.sin(timeSeconds * 13) * 0.1 + 0.1; // Medium flicker
-    const fastFlicker = Math.sin(timeSeconds * 20) * 0.1 + 0.1; // Fast flicker
-    const slowFlicker = Math.sin(timeSeconds * 6) * 0.04 + 0.5; // Slow base flicker
-    // Combine the flickers
-    const combinedFlicker = (slowFlicker + mediumFlicker + fastFlicker) / 3;
+    // Noise that changes abruptly
+    const stepNoise =
+      Math.floor(
+        Math.sin(timeSeconds * 12.5) * Math.cos(timeSeconds * 9.8) * 10
+      ) / 10;
+
+    // Base flicker value (reduced by 2/3, then by 4x for brightness)
+    const baseFlicker = 0.0425 + jump1 * 0.025 + jump2 * 0.02 + jump3 * 0.015; // 1/4 of previous
+
+    // Combine with big random jumps (no smooth transitions)
+    const combinedFlicker = baseFlicker + stepNoise * 0.0375;
+
+    // Random flicker for opacity (stepped, not smooth)
+    const randomFlicker = Math.abs(
+      Math.floor(Math.sin(timeSeconds * 10.3) * 6) / 6
+    );
 
     for (let i = 0; i < this.lights.length - 1; i++) {
+      // Skip flickering for the white light
+      if (this.lights[i].color.equals(new THREE.Color(1, 1, 1))) {
+        continue;
+      }
       const h = baseHue + combinedFlicker * hueVariation; // Slightly varying orange-red hue (dynamic fire colors)
-      const s = 0.5 + randomFlicker * 0.3; // High saturation with slight variation (50-80% saturation)
+      const s = 0.1 + randomFlicker * 0.3; // High saturation with slight variation (50-80% saturation)
       const l = 0.5 + combinedFlicker * 0.2; // Varying brightness (50-70% lightness)
       this.lights[i].color.setHSL(h, s, l);
     }
 
     // Apply flickering to the ambient light with fixed saturation
-    this.lights[this.lights.length - 1].color.setHSL(
-      baseHue, // Orange-red base hue
-      0.5, // Fixed 50% saturation
-      combinedFlicker // Variable brightness based on flicker
-    );
+    const lastLight = this.lights[this.lights.length - 1];
+    if (lastLight.color.equals(new THREE.Color(1, 1, 1))) {
+      // White-only flicker: modulate intensity via opacity (keep color pure white)
+      lastLight.opacity = 0.1 * randomFlicker; // 0.7 .. 1.0
+    } else {
+      // Non-white lights: apply warm flicker in HSL
+      lastLight.color.setHSL(baseHue, 0.5, combinedFlicker);
+    }
   }
 }

@@ -1,4 +1,5 @@
 const RAPIER = await import("@dimforge/rapier3d");
+import * as THREE from "three";
 
 class PhysicsManager {
   constructor() {
@@ -19,9 +20,21 @@ class PhysicsManager {
     return floor;
   }
 
-  createCharacter(position = { x: 0, y: 2, z: 0 }) {
+  createCharacter(
+    position = { x: 0, y: 2, z: 0 },
+    rotation = { x: 0, y: 0, z: 0 }
+  ) {
+    // Convert Euler angles in DEGREES to quaternion
+    const euler = new THREE.Euler(
+      THREE.MathUtils.degToRad(rotation.x),
+      THREE.MathUtils.degToRad(rotation.y),
+      THREE.MathUtils.degToRad(rotation.z)
+    );
+    const quat = new THREE.Quaternion().setFromEuler(euler);
+
     const bodyDesc = RAPIER.RigidBodyDesc.dynamic()
       .setTranslation(position.x, position.y, position.z)
+      .setRotation({ x: quat.x, y: quat.y, z: quat.z, w: quat.w })
       .setLinearDamping(0.2);
     const body = this.world.createRigidBody(bodyDesc);
     // Capsule with full height 1.6m: 2*halfHeight + 2*radius = 1.6 => halfHeight=0.5, radius=0.3

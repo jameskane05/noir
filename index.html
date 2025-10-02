@@ -4,14 +4,22 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Spark • VFX Dynamic Lighting</title>
+    <link rel="stylesheet" href="/src/style.css" />
     <style>
       body {
         margin: 0;
+      }
+      .font-preload {
+        position: absolute;
+        visibility: hidden;
+        font-family: "LePorsche";
       }
     </style>
   </head>
 
   <body>
+    <!-- Hidden element to force font loading -->
+    <div class="font-preload">.</div>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>
