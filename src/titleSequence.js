@@ -20,7 +20,7 @@ export class TitleSequence {
       this.outroDuration;
 
     // Calculate when outro should start (same for all splats)
-    const outroStartTime =
+    this.outroStartTime =
       this.introDuration +
       this.staggerDelay * (splats.length - 1) +
       this.holdDuration;
@@ -37,7 +37,7 @@ export class TitleSequence {
         dyno.dynoFloat(this.holdDuration),
         dyno.dynoFloat(this.outroDuration),
         dyno.dynoFloat(this.disperseDistance),
-        dyno.dynoFloat(outroStartTime),
+        dyno.dynoFloat(this.outroStartTime),
         dyno.dynoInt(i)
       );
 
@@ -211,6 +211,10 @@ export class TitleSequence {
 
   isComplete() {
     return this.time >= this.totalDuration;
+  }
+
+  hasOutroStarted() {
+    return this.time >= this.outroStartTime && this.time < this.totalDuration;
   }
 
   reset() {

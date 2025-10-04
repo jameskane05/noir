@@ -45,6 +45,55 @@ class PhysicsManager {
     return body;
   }
 
+  /**
+   * Create a sensor box collider descriptor (trigger, no physics interaction)
+   * @param {number} hx - Half-extent X
+   * @param {number} hy - Half-extent Y
+   * @param {number} hz - Half-extent Z
+   * @returns {Object} Collider descriptor
+   */
+  createSensorBox(hx, hy, hz) {
+    return RAPIER.ColliderDesc.cuboid(hx, hy, hz).setSensor(true);
+  }
+
+  /**
+   * Create a sensor sphere collider descriptor (trigger, no physics interaction)
+   * @param {number} radius - Sphere radius
+   * @returns {Object} Collider descriptor
+   */
+  createSensorSphere(radius) {
+    return RAPIER.ColliderDesc.ball(radius).setSensor(true);
+  }
+
+  /**
+   * Create a sensor capsule collider descriptor (trigger, no physics interaction)
+   * @param {number} halfHeight - Half height of the cylindrical part
+   * @param {number} radius - Capsule radius
+   * @returns {Object} Collider descriptor
+   */
+  createSensorCapsule(halfHeight, radius) {
+    return RAPIER.ColliderDesc.capsule(halfHeight, radius).setSensor(true);
+  }
+
+  /**
+   * Create a collider from a descriptor
+   * @param {Object} colliderDesc - Collider descriptor
+   * @returns {Object} Collider
+   */
+  createColliderFromDesc(colliderDesc) {
+    return this.world.createCollider(colliderDesc);
+  }
+
+  /**
+   * Check if two colliders are intersecting
+   * @param {Object} collider1 - First collider
+   * @param {Object} collider2 - Second collider
+   * @returns {boolean} True if intersecting
+   */
+  checkIntersection(collider1, collider2) {
+    return this.world.intersectionPair(collider1, collider2);
+  }
+
   step() {
     this.world.step();
   }

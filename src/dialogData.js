@@ -17,6 +17,36 @@ export const dialogSequences = {
   // Example intro dialog
   intro: {
     id: "intro",
+    audio: "./audio/dialog/00-on-her-trail.mp3",
+    captions: [
+      { text: "I’d been on her trail for weeks.", duration: 2.0 },
+      { text: "An art thief, she’d swindled society-types,", duration: 3.5 },
+      {
+        text: "hauling in more than a few of the Old Masters.",
+        duration: 2.5,
+      },
+      {
+        text: "An anonymous tip came in:",
+        duration: 2.5,
+      },
+      {
+        text: "the stash was uptown,",
+        duration: 2.0,
+      },
+      {
+        text: "and sure as I staked it out, she was there.",
+        duration: 2.0,
+      },
+      {
+        text: "Time to answer some tough questions, Ms. Petit.",
+        duration: 2.5,
+      },
+    ],
+  },
+
+  // Example intro dialog
+  paintings: {
+    id: "didnt-paint-those-paintings",
     audio: "./audio/dialog/01-didnt-paint-those-paintings.mp3",
     captions: [
       { text: "I didn't paint those paintings!", duration: 2.0 },

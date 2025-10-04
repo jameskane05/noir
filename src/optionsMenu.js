@@ -21,6 +21,7 @@ class OptionsMenu {
     this.settings = {
       musicVolume: 0.6,
       sfxVolume: 0.5,
+      dofEnabled: true,
       dofApertureSize: 0.01,
       dofFocalDistance: 6.0,
       ...this.loadSettings(),
@@ -103,7 +104,7 @@ class OptionsMenu {
           <!-- SFX Volume -->
           <div class="option-group">
             <label class="option-label" for="sfx-volume">
-              SFX Volume
+              SFX & Dialog Volume
               <span class="option-value" id="sfx-volume-value">50%</span>
             </label>
             <input 
@@ -116,8 +117,21 @@ class OptionsMenu {
             >
           </div>
 
-          <!-- DoF Aperture Size -->
+          <!-- DoF Enable Checkbox -->
           <div class="option-group">
+            <label class="option-label checkbox-label" for="dof-enabled">
+              Depth of Field
+              <input 
+                type="checkbox" 
+                id="dof-enabled" 
+                class="option-checkbox"
+                checked
+              >
+            </label>
+          </div>
+
+          <!-- DoF Aperture Size -->
+          <div class="option-group dof-setting">
             <label class="option-label" for="dof-aperture">
               DoF Aperture Size
               <span class="option-value" id="dof-aperture-value">0.01</span>
@@ -134,7 +148,7 @@ class OptionsMenu {
           </div>
 
           <!-- DoF Focal Distance -->
-          <div class="option-group">
+          <div class="option-group dof-setting">
             <label class="option-label" for="dof-focal">
               DoF Focal Distance
               <span class="option-value" id="dof-focal-value">6.0</span>
@@ -190,6 +204,16 @@ class OptionsMenu {
     });
 
     sfxSlider.addEventListener("change", () => {
+      this.saveSettings();
+    });
+
+    // DoF Enable checkbox
+    const dofEnabledCheckbox = document.getElementById("dof-enabled");
+
+    dofEnabledCheckbox.addEventListener("change", (e) => {
+      this.settings.dofEnabled = e.target.checked;
+      this.updateDofSettingsVisibility();
+      this.applyDepthOfField();
       this.saveSettings();
     });
 
@@ -312,6 +336,7 @@ class OptionsMenu {
     const musicValue = document.getElementById("music-volume-value");
     const sfxSlider = document.getElementById("sfx-volume");
     const sfxValue = document.getElementById("sfx-volume-value");
+    const dofEnabledCheckbox = document.getElementById("dof-enabled");
     const dofApertureSlider = document.getElementById("dof-aperture");
     const dofApertureValue = document.getElementById("dof-aperture-value");
     const dofFocalSlider = document.getElementById("dof-focal");
@@ -328,6 +353,8 @@ class OptionsMenu {
     sfxValue.textContent = `${sfxPercent}%`;
     sfxSlider.style.setProperty("--value", `${sfxPercent}%`);
 
+    dofEnabledCheckbox.checked = this.settings.dofEnabled;
+
     const apertureInt = Math.round(this.settings.dofApertureSize * 100);
     dofApertureSlider.value = apertureInt;
     dofApertureValue.textContent = this.settings.dofApertureSize.toFixed(2);
@@ -342,6 +369,8 @@ class OptionsMenu {
       "--value",
       `${(this.settings.dofFocalDistance / 15) * 100}%`
     );
+
+    this.updateDofSettingsVisibility();
   }
 
   /**
@@ -364,21 +393,41 @@ class OptionsMenu {
   }
 
   /**
+   * Update visibility of DoF settings based on dofEnabled
+   */
+  updateDofSettingsVisibility() {
+    const dofSettings = document.querySelectorAll(".dof-setting");
+    dofSettings.forEach((setting) => {
+      if (this.settings.dofEnabled) {
+        setting.classList.remove("disabled");
+      } else {
+        setting.classList.add("disabled");
+      }
+    });
+  }
+
+  /**
    * Apply depth of field settings
    */
   applyDepthOfField() {
     if (this.sparkRenderer) {
-      const apertureSize = this.settings.dofApertureSize;
-      const focalDistance = this.settings.dofFocalDistance;
-
-      // Calculate aperture angle from aperture size and focal distance
-      if (focalDistance > 0) {
-        this.sparkRenderer.apertureAngle =
-          2 * Math.atan((0.5 * apertureSize) / focalDistance);
-      } else {
+      if (!this.settings.dofEnabled) {
+        // Disable DoF by setting aperture angle to 0
         this.sparkRenderer.apertureAngle = 0.0;
+        this.sparkRenderer.focalDistance = 0.0;
+      } else {
+        const apertureSize = this.settings.dofApertureSize;
+        const focalDistance = this.settings.dofFocalDistance;
+
+        // Calculate aperture angle from aperture size and focal distance
+        if (focalDistance > 0) {
+          this.sparkRenderer.apertureAngle =
+            2 * Math.atan((0.5 * apertureSize) / focalDistance);
+        } else {
+          this.sparkRenderer.apertureAngle = 0.0;
+        }
+        this.sparkRenderer.focalDistance = focalDistance;
       }
-      this.sparkRenderer.focalDistance = focalDistance;
     }
   }
 

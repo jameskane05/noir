@@ -1,8 +1,8 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { SplatMesh, SparkRenderer, SparkControls } from "@sparkjsdev/spark";
-import { getAssetFileURL } from "/src/getAssetUrl.js";
-import { LightingSystem } from "/src/lights.js";
+//import { LightingSystem } from "/src/lights.js";
 import PhysicsManager from "./physicsManager.js";
 import CharacterController from "./characterController.js";
 import MusicManager from "./musicManager.js";
@@ -11,18 +11,20 @@ import OptionsMenu from "./optionsMenu.js";
 import DialogManager from "./dialogManager.js";
 import GameManager from "./gameManager.js";
 import UIManager from "./uiManager.js";
+import ColliderSystem from "./colliderSystem.js";
 import { dialogSequences } from "./dialogData.js";
+import colliders from "./colliderData.js";
 import { createAnimatedTextSplat } from "./textSplat.js";
 import { TitleSequence } from "./titleSequence.js";
 import { IntroSequence } from "./introSequence.js";
-import "./optionsMenu.css";
+import "./styles/optionsMenu.css";
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(
   60,
   window.innerWidth / window.innerHeight,
   0.1,
-  100
+  200
 );
 camera.position.set(0, 5, 0);
 scene.add(camera); // Add camera to scene so its children render
@@ -51,8 +53,7 @@ const spark = new SparkRenderer({
 scene.add(spark);
 
 // Load and add the SplatMesh
-const splatURL = await getAssetFileURL("street.ply");
-const factory = new SplatMesh({ url: splatURL });
+const factory = new SplatMesh({ url: "/exterior-test.ply" });
 factory.quaternion.set(1, 0, 0, 0);
 factory.position.set(0, 0, 0);
 factory.scale.set(5, 5, 5);
@@ -61,7 +62,56 @@ scene.add(factory);
 // Wait for environment to load
 await factory.initialized;
 
+// Load phonebooth GLTF model
+const gltfLoader = new GLTFLoader();
+gltfLoader.load(
+  "/gltf/phonebooth.glb",
+  (gltf) => {
+    const phonebooth = gltf.scene;
+
+    // Traverse all children and ensure they inherit scale properly
+    phonebooth.traverse((child) => {
+      if (child.isMesh) {
+        // Ensure materials are visible
+        if (child.material) {
+          child.material.needsUpdate = true;
+        }
+      }
+    });
+
+    // Create a container group for proper scaling
+    const phoneboothContainer = new THREE.Group();
+    phoneboothContainer.add(phonebooth);
+    phoneboothContainer.position.set(10, -1.65, 35);
+    phoneboothContainer.rotation.set(0, Math.PI / 2, 0);
+    phoneboothContainer.scale.set(2.75, 2.75, 2.75);
+
+    scene.add(phoneboothContainer);
+    console.log("Phonebooth loaded successfully");
+  },
+  undefined,
+  (error) => {
+    console.error("Error loading phonebooth:", error);
+  }
+);
+
 // Removed visible floor mesh; physics floor exists via Rapier collider
+
+// Add lighting for standard meshes
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.5); // Soft white ambient light
+scene.add(ambientLight);
+
+const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8); // Main directional light
+directionalLight.position.set(10, 20, 10);
+directionalLight.castShadow = true;
+scene.add(directionalLight);
+
+// Optional: Add a subtle fill light from the opposite direction
+const fillLight = new THREE.DirectionalLight(0x4466ff, 0.3); // Blueish fill
+fillLight.position.set(-10, 10, -10);
+scene.add(fillLight);
+
+console.log("Scene lighting initialized");
 
 // Initialize the physics manager
 const physicsManager = new PhysicsManager();
@@ -87,13 +137,74 @@ const characterController = new CharacterController(
   sfxManager
 );
 
+// Load city ambiance audio (use character controller's audio listener)
+const audioLoader = new THREE.AudioLoader();
+let cityAmbianceSound = null;
+let cityAmbianceLoaded = false;
+audioLoader.load(
+  "/audio/sfx/city-ambiance.mp3",
+  (buffer) => {
+    cityAmbianceSound = new THREE.Audio(characterController.audioListener);
+    cityAmbianceSound.setBuffer(buffer);
+    cityAmbianceSound.setLoop(true);
+    cityAmbianceSound.setVolume(1.0); // Base volume
+
+    // Register with SFX manager
+    sfxManager.registerSound("city-ambiance", cityAmbianceSound, 1.0);
+
+    cityAmbianceLoaded = true;
+
+    // Attempt immediate autoplay (like music does)
+    if (characterController.audioListener.context.state === "suspended") {
+      characterController.audioListener.context
+        .resume()
+        .then(() => {
+          cityAmbianceSound.play();
+          console.log(
+            "City ambiance started immediately (autoplay successful)"
+          );
+        })
+        .catch(() => {
+          console.log(
+            "City ambiance autoplay blocked, waiting for user interaction"
+          );
+        });
+    } else {
+      cityAmbianceSound.play();
+      console.log("City ambiance started immediately");
+    }
+  },
+  undefined,
+  (error) => {
+    console.warn("Failed to load city ambiance audio:", error);
+  }
+);
+
+// Fallback: Start city ambiance on first user interaction if autoplay failed
+const startCityAmbianceOnInteraction = () => {
+  if (cityAmbianceLoaded && cityAmbianceSound && !cityAmbianceSound.isPlaying) {
+    if (characterController.audioListener.context.state === "suspended") {
+      characterController.audioListener.context.resume().then(() => {
+        cityAmbianceSound.play();
+        console.log("City ambiance started (user interaction fallback)");
+      });
+    } else {
+      cityAmbianceSound.play();
+      console.log("City ambiance started (user interaction fallback)");
+    }
+    // Remove listener after first play
+    document.removeEventListener("click", startCityAmbianceOnInteraction);
+  }
+};
+document.addEventListener("click", startCityAmbianceOnInteraction);
+
 // Make character controller globally accessible for options menu
 window.characterController = characterController;
 
 let characterControllerEnabled = false;
 
 // Initialize lighting system
-const lightingSystem = new LightingSystem(scene);
+//const lightingSystem = new LightingSystem(scene);
 
 // Initialize game manager (central coordination)
 const gameManager = new GameManager();
@@ -118,27 +229,47 @@ const optionsMenu = new OptionsMenu({
   sparkRenderer: spark,
 });
 
-// Initialize intro sequence
-const introSequence = new IntroSequence(camera, {
-  circleCenter: new THREE.Vector3(0, 0, 0), // Center point of the circular path
-  circleRadius: 8,
-  circleHeight: 18,
-  circleSpeed: 0.3,
-  targetPosition: new THREE.Vector3(10, 2.5, 15), // Match character Y (0.9) + cameraHeight (1.6)
-  targetRotation: { yaw: THREE.MathUtils.degToRad(-230), pitch: 0 },
-  transitionDuration: 8.0,
-  uiManager: uiManager,
-});
+// Check if we should skip intro based on URL params
+const skipIntro = gameManager.shouldSkipIntro();
 
-// Start second track during intro camera animation
-musicManager.changeMusic("rach2", 2.0);
-currentMusicTrack = "rach2";
+// Initialize intro sequence (only if not skipping)
+let introSequence = null;
+if (!skipIntro) {
+  introSequence = new IntroSequence(camera, {
+    circleCenter: new THREE.Vector3(12, 0, 5), // Center point of the circular path
+    circleRadius: 12,
+    circleHeight: 8,
+    circleSpeed: 0.05,
+    targetPosition: new THREE.Vector3(10, 2.5, 15), // Match character Y (0.9) + cameraHeight (1.6)
+    targetRotation: { yaw: THREE.MathUtils.degToRad(-230), pitch: 0 },
+    transitionDuration: 8.0,
+    uiManager: uiManager,
+  });
+
+  // Start second track during intro camera animation
+  musicManager.changeMusic("rach2", 2.0);
+  currentMusicTrack = "rach2";
+} else {
+  // Skip intro - start first track immediately
+  musicManager.changeMusic("rach1", 0);
+  currentMusicTrack = "rach1";
+
+  // Enable character controller immediately
+  characterControllerEnabled = true;
+  characterController.headbobEnabled = true;
+
+  console.log("Skipping intro sequence - starting at spawn");
+}
 
 // Initialize dialog manager with HTML captions
 const dialogManager = new DialogManager({
-  audioVolume: 0.8,
+  audioVolume: 1.0,
   useSplats: false, // Use HTML instead of text splats
+  sfxManager: sfxManager, // Link to SFX manager for volume control
 });
+
+// Register dialog manager with SFX manager
+sfxManager.registerDialogManager(dialogManager);
 
 // Style the HTML captions
 dialogManager.setCaptionStyle({
@@ -152,6 +283,18 @@ dialogManager.setCaptionStyle({
   lineHeight: "1.4",
 });
 
+// Register dialog manager with SFX manager
+if (sfxManager && dialogManager) {
+  // Create a proxy object that implements the setVolume interface
+  const dialogVolumeControl = {
+    setVolume: (volume) => {
+      dialogManager.setVolume(volume);
+    },
+  };
+  // Boost dialog base volume so it is louder relative to SFX master
+  sfxManager.registerSound("dialog", dialogVolumeControl, 2.0);
+}
+
 // Initialize gameManager with all managers
 gameManager.initialize({
   dialogManager: dialogManager,
@@ -160,9 +303,104 @@ gameManager.initialize({
   uiManager: uiManager,
 });
 
+// Set up event listener to stop city ambiance
+gameManager.on("stop-city-ambiance", () => {
+  if (cityAmbianceSound && cityAmbianceSound.isPlaying) {
+    cityAmbianceSound.stop();
+    console.log("City ambiance stopped");
+  }
+});
+
+// Set up event listener to start city ambiance
+gameManager.on("start-city-ambiance", () => {
+  if (cityAmbianceSound && !cityAmbianceSound.isPlaying) {
+    // Resume audio context if suspended
+    if (characterController.audioListener.context.state === "suspended") {
+      characterController.audioListener.context.resume().then(() => {
+        cityAmbianceSound.play();
+        console.log("City ambiance started (audio context resumed)");
+      });
+    } else {
+      cityAmbianceSound.play();
+      console.log("City ambiance started");
+    }
+  }
+});
+
+// Initialize collider system
+const colliderSystem = new ColliderSystem(
+  physicsManager,
+  gameManager,
+  colliders
+);
+
+// Make collider system globally accessible for debugging
+window.colliderSystem = colliderSystem;
+
+// Create debug visualization meshes for colliders
+const debugColliderMeshes = [];
+colliders.forEach((colliderData) => {
+  if (!colliderData.enabled) return;
+
+  let geometry;
+  switch (colliderData.type) {
+    case "box":
+      geometry = new THREE.BoxGeometry(
+        colliderData.dimensions.x * 2,
+        colliderData.dimensions.y * 2,
+        colliderData.dimensions.z * 2
+      );
+      break;
+    case "sphere":
+      geometry = new THREE.SphereGeometry(
+        colliderData.dimensions.radius,
+        16,
+        16
+      );
+      break;
+    case "capsule":
+      geometry = new THREE.CapsuleGeometry(
+        colliderData.dimensions.radius,
+        colliderData.dimensions.halfHeight * 2,
+        8,
+        16
+      );
+      break;
+  }
+
+  if (geometry) {
+    // Semi-transparent debug material
+    const material = new THREE.MeshBasicMaterial({
+      color: 0x00ff00,
+      transparent: true,
+      opacity: 0.3,
+      wireframe: false,
+    });
+    const mesh = new THREE.Mesh(geometry, material);
+
+    // Apply position
+    mesh.position.set(
+      colliderData.position.x,
+      colliderData.position.y,
+      colliderData.position.z
+    );
+
+    // Apply rotation (convert degrees to radians)
+    mesh.rotation.set(
+      THREE.MathUtils.degToRad(colliderData.rotation.x),
+      THREE.MathUtils.degToRad(colliderData.rotation.y),
+      THREE.MathUtils.degToRad(colliderData.rotation.z)
+    );
+
+    scene.add(mesh);
+    debugColliderMeshes.push(mesh);
+    console.log(`Added debug mesh for collider: ${colliderData.id}`);
+  }
+});
+
 // Global escape key handler for options menu (only works when game is active, not during intro)
 window.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && !introSequence.isActive) {
+  if (e.key === "Escape" && (!introSequence || !introSequence.isActive)) {
     e.preventDefault();
     optionsMenu.toggle();
   }
@@ -206,28 +444,47 @@ let introStartTriggered = false;
 
 // Monitor intro sequence for start
 const checkIntroStart = () => {
+  if (!introSequence) return; // Skip if no intro sequence
+
   if (introSequence.hasStarted && !introStartTriggered) {
     introStartTriggered = true;
 
-    // Delay title sequence and music by 1 second
-    setTimeout(() => {
-      // Make text visible before starting sequence
-      textSplat1.mesh.visible = true;
-      textSplat2.mesh.visible = true;
+    // Start city ambiance on first user interaction (button click)
+    if (
+      cityAmbianceLoaded &&
+      cityAmbianceSound &&
+      !cityAmbianceSound.isPlaying
+    ) {
+      // Resume audio context (user interaction unlocks it)
+      if (characterController.audioListener.context.state === "suspended") {
+        characterController.audioListener.context.resume().then(() => {
+          cityAmbianceSound.play();
+          console.log(
+            "City ambiance started (audio context unlocked by user interaction)"
+          );
+        });
+      } else {
+        cityAmbianceSound.play();
+        console.log("City ambiance started");
+      }
+    }
 
-      titleSequence = new TitleSequence([textSplat1, textSplat2], {
-        introDuration: 5.0,
-        staggerDelay: 2.0,
-        holdDuration: 4.0,
-        outroDuration: 2.0,
-        disperseDistance: 5.0,
-      });
-      sequenceStarted = true;
+    // Make text visible before starting sequence
+    textSplat1.mesh.visible = true;
+    textSplat2.mesh.visible = true;
 
-      // Rapidly crossfade from rach2 to rach1
-      musicManager.changeMusic("rach1", 1.0);
-      currentMusicTrack = "rach1";
-    }, 1000);
+    titleSequence = new TitleSequence([textSplat1, textSplat2], {
+      introDuration: 5.0,
+      staggerDelay: 2.0,
+      holdDuration: 4.0,
+      outroDuration: 2.0,
+      disperseDistance: 5.0,
+    });
+    sequenceStarted = true;
+
+    // Rapidly crossfade from rach2 to rach1
+    musicManager.changeMusic("rach1", 0.25);
+    currentMusicTrack = "rach1";
   }
 };
 
@@ -245,6 +502,15 @@ window.addEventListener("keydown", (event) => {
       console.log("Switching to Rachmaninoff 3 - Movement 1");
     }
   }
+
+  // Test camera look-at with P key
+  if (event.key.toLowerCase() === "p" && characterControllerEnabled) {
+    const testPosition = new THREE.Vector3(10, 5, -20);
+    characterController.lookAt(testPosition, 2.0, () => {
+      console.log("Look-at test complete, restoring control");
+      characterController.inputDisabled = false;
+    });
+  }
 });
 
 let lastTime;
@@ -254,19 +520,13 @@ renderer.setAnimationLoop(function animate(time) {
   lastTime = t;
 
   // Update intro sequence (camera animation and transition)
-  if (introSequence.isActive) {
+  if (introSequence && introSequence.isActive) {
     introSequence.update(dt);
     checkIntroStart(); // Check if start button was clicked
-
-    // Enable character controller when intro is complete
-    if (introSequence.isComplete() && !characterControllerEnabled) {
-      characterControllerEnabled = true;
-      console.log("Intro complete, enabling character controller");
-    }
   }
 
   // Don't update game logic if options menu is open or intro is active
-  if (!optionsMenu.isOpen && !introSequence.isActive) {
+  if (!optionsMenu.isOpen && (!introSequence || !introSequence.isActive)) {
     // Update character controller (handles input, physics, camera, headbob)
     if (characterControllerEnabled) {
       characterController.update(dt);
@@ -274,11 +534,23 @@ renderer.setAnimationLoop(function animate(time) {
 
     // Physics step
     physicsManager.step();
+
+    // Update collider system (check for trigger intersections)
+    if (characterControllerEnabled) {
+      colliderSystem.update(character);
+    }
   }
 
   // Update title sequence (pass dt in seconds)
   if (titleSequence) {
     titleSequence.update(dt);
+
+    // Enable character controller when the title outro begins
+    if (!characterControllerEnabled && titleSequence.hasOutroStarted()) {
+      characterControllerEnabled = true;
+      characterController.headbobEnabled = true;
+      console.log("Title outro started, enabling character controller");
+    }
 
     // Check if title sequence is complete and trigger intro dialog
     if (titleSequence.isComplete() && !introDialogTriggered) {
@@ -295,7 +567,7 @@ renderer.setAnimationLoop(function animate(time) {
   dialogManager.update(dt);
 
   // Update lighting
-  lightingSystem.updateFlickering(t);
+  //lightingSystem.updateFlickering(t);
 
   renderer.render(scene, camera);
 });

@@ -2,32 +2,6 @@ import * as THREE from "three";
 import { textSplats } from "@sparkjsdev/spark";
 
 /**
- * Creates and adds a text splat to the scene
- * @param {THREE.Scene} scene - The scene to add the text splat to
- * @returns {SplatMesh} The created text splat mesh
- */
-export function createTextSplat(scene) {
-  // Create a big text splat
-  const textMesh = textSplats({
-    text: "WELCOME TO SPARK!",
-    font: "Arial",
-    fontSize: 80,
-    color: new THREE.Color(0x00ffff), // Cyan color
-  });
-
-  // Scale the text splat
-  textMesh.scale.setScalar(0.8 / 80);
-
-  // Position it in front of the camera (adjust as needed)
-  textMesh.position.set(0, 5.5, -3);
-
-  // Add the text splat to the scene
-  scene.add(textMesh);
-
-  return textMesh;
-}
-
-/**
  * Creates an animated text splat with optional animation
  * @param {THREE.Scene} scene - The scene to add the text splat to
  * @param {Object} options - Configuration options

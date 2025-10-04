@@ -18,6 +18,7 @@ class DialogManager {
     this.useSplats = options.useSplats !== undefined ? options.useSplats : true;
     this.scene = options.scene || null;
     this.camera = options.camera || null;
+    this.sfxManager = options.sfxManager || null;
 
     // Caption display (HTML or text splat)
     if (this.useSplats && this.scene && this.camera) {
@@ -30,7 +31,8 @@ class DialogManager {
       this.useSplats = false;
     }
 
-    this.audioVolume = options.audioVolume || 0.8;
+    this.baseVolume = options.audioVolume || 0.8;
+    this.audioVolume = this.baseVolume;
     this.currentDialog = null;
     this.currentAudio = null;
     this.captionQueue = [];
@@ -38,6 +40,11 @@ class DialogManager {
     this.captionTimer = 0;
     this.isPlaying = false;
     this.onCompleteCallback = null;
+
+    // Update volume based on SFX manager if available
+    if (this.sfxManager) {
+      this.audioVolume = this.baseVolume * this.sfxManager.getMasterVolume();
+    }
 
     // Text splat configuration
     this.splatConfig = {
@@ -373,9 +380,23 @@ class DialogManager {
    * @param {number} volume - Volume level (0-1)
    */
   setVolume(volume) {
-    this.audioVolume = volume;
+    const clamped = Math.max(0, Math.min(1, volume));
+    this.baseVolume = clamped;
+    this.updateVolume();
+  }
+
+  /**
+   * Update volume based on SFX manager
+   */
+  updateVolume() {
+    if (this.sfxManager) {
+      this.audioVolume = this.baseVolume * this.sfxManager.getMasterVolume();
+    } else {
+      this.audioVolume = this.baseVolume;
+    }
+
     if (this.currentAudio) {
-      this.currentAudio.volume(volume);
+      this.currentAudio.volume(this.audioVolume);
     }
   }
 

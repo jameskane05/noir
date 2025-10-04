@@ -22,6 +22,43 @@ class GameManager {
     this.musicManager = null;
     this.sfxManager = null;
     this.uiManager = null;
+
+    // Parse URL parameters on construction
+    this.urlParams = this.parseURLParams();
+  }
+
+  /**
+   * Parse URL parameters
+   * @returns {Object} Object with URL parameters
+   */
+  parseURLParams() {
+    const params = {};
+    const searchParams = new URLSearchParams(window.location.search);
+
+    for (const [key, value] of searchParams) {
+      params[key] = value;
+    }
+
+    console.log("GameManager: URL params:", params);
+    return params;
+  }
+
+  /**
+   * Get a URL parameter value
+   * @param {string} key - Parameter name
+   * @returns {string|null} Parameter value or null if not found
+   */
+  getURLParam(key) {
+    return this.urlParams[key] || null;
+  }
+
+  /**
+   * Check if intro sequence should be skipped
+   * @returns {boolean} True if intro should be skipped
+   */
+  shouldSkipIntro() {
+    const location = this.getURLParam("location");
+    return location === "spawn";
   }
 
   /**

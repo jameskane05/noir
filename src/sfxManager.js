@@ -12,6 +12,7 @@ class SFXManager {
   constructor(options = {}) {
     this.masterVolume = options.masterVolume || 0.5;
     this.sounds = new Map(); // Map of id -> {audio, baseVolume}
+    this.dialogManager = null; // Will be set externally
   }
 
   /**
@@ -53,6 +54,19 @@ class SFXManager {
     for (const [id] of this.sounds) {
       this.updateSoundVolume(id);
     }
+
+    // Update dialog volume if dialog manager is registered
+    if (this.dialogManager && this.dialogManager.updateVolume) {
+      this.dialogManager.updateVolume();
+    }
+  }
+
+  /**
+   * Register dialog manager to be controlled by SFX volume
+   * @param {DialogManager} dialogManager - Dialog manager instance
+   */
+  registerDialogManager(dialogManager) {
+    this.dialogManager = dialogManager;
   }
 
   /**

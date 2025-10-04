@@ -248,21 +248,28 @@ class MusicManager {
   }
 
   /**
-   * Set global volume with optional fade
+   * Set music volume with optional fade (affects only music tracks)
    * @param {number} volume - Target volume (0-1)
    * @param {number} fadeDuration - Duration of fade in seconds
    */
   setVolume(volume, fadeDuration = 0) {
+    this.defaultVolume = volume;
+
     if (fadeDuration > 0) {
       this.volumeChangeState = {
         active: true,
-        startVolume: Howler.volume(),
+        startVolume: this.currentTrack
+          ? this.tracks[this.currentTrack].volume()
+          : 0,
         targetVolume: volume,
         duration: fadeDuration,
         startTime: Date.now(),
       };
     } else {
-      Howler.volume(volume);
+      // Immediately set volume for current track
+      if (this.currentTrack && this.tracks[this.currentTrack]) {
+        this.tracks[this.currentTrack].volume(volume);
+      }
     }
   }
 
@@ -304,7 +311,11 @@ class MusicManager {
         this.volumeChangeState.targetVolume,
         t
       );
-      Howler.volume(newVolume);
+
+      // Apply to current track only
+      if (this.currentTrack && this.tracks[this.currentTrack]) {
+        this.tracks[this.currentTrack].volume(newVolume);
+      }
 
       if (t >= 1) {
         this.volumeChangeState.active = false;

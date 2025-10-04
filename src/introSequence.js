@@ -57,7 +57,20 @@ export class IntroSequence {
       gap: 20px;
       pointer-events: all;
       background: rgba(0, 0, 0, 0.3);
-      backdrop-filter: blur(2px);
+    `;
+
+    // Create tagline
+    this.tagline = document.createElement("div");
+    this.tagline.innerHTML = `In this town<br>it's hard to stray far from...`;
+    this.tagline.style.cssText = `
+      font-family: 'LePorsche', Arial, sans-serif;
+      font-size: 42px;
+      color: #fff;
+      text-align: center;
+      line-height: 1.4;
+      margin-bottom: 40px;
+      text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.9);
+      letter-spacing: 2px;
     `;
 
     // Create start button
@@ -134,6 +147,7 @@ export class IntroSequence {
       }
     });
 
+    this.overlay.appendChild(this.tagline);
     this.overlay.appendChild(this.startButton);
     this.overlay.appendChild(this.optionsButton);
     document.body.appendChild(this.overlay);
