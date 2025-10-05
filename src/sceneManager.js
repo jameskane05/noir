@@ -1,0 +1,460 @@
+import * as THREE from "three";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { SplatMesh } from "@sparkjsdev/spark";
+
+/**
+ * SceneManager - Manages scene objects (splats, GLTF models, etc.)
+ *
+ * Features:
+ * - Load and manage splat meshes
+ * - Load and manage GLTF models
+ * - Centralized scene object registration
+ * - Automatic cleanup and unloading
+ *
+ * Usage Example:
+ *
+ * import SceneManager from './sceneManager.js';
+ * import { sceneObjects } from './sceneData.js';
+ *
+ * // Create manager
+ * const sceneManager = new SceneManager(scene);
+ *
+ * // Load all objects from data
+ * await sceneManager.loadFromData(sceneObjects);
+ *
+ * // Or load individual objects
+ * await sceneManager.loadObject(sceneObjects.exterior);
+ * await sceneManager.loadObject(sceneObjects.phonebooth);
+ *
+ * // Access loaded objects
+ * const phonebooth = sceneManager.getObject('phonebooth');
+ *
+ * // Cleanup
+ * sceneManager.destroy();
+ */
+
+class SceneManager {
+  constructor(scene) {
+    this.scene = scene;
+    this.objects = new Map(); // Map of id -> THREE.Object3D
+    this.gltfLoader = new GLTFLoader();
+    this.loadingPromises = new Map(); // Track loading promises
+
+    // Animation management
+    this.animationMixers = new Map(); // Map of objectId -> THREE.AnimationMixer
+    this.animationActions = new Map(); // Map of animationId -> THREE.AnimationAction
+    this.animationData = new Map(); // Map of animationId -> animation data config
+  }
+
+  /**
+   * Load all objects from scene data
+   * @param {Object} sceneData - Scene data object (from sceneData.js)
+   * @returns {Promise<void>}
+   */
+  async loadFromData(sceneData) {
+    const loadPromises = Object.values(sceneData).map((objectData) =>
+      this.loadObject(objectData)
+    );
+    await Promise.all(loadPromises);
+  }
+
+  /**
+   * Load objects based on current game state
+   * @param {Array<Object>} objectsToLoad - Array of scene object data from getSceneObjectsForState()
+   * @returns {Promise<void>}
+   */
+  async loadObjectsForState(objectsToLoad) {
+    if (!objectsToLoad || objectsToLoad.length === 0) {
+      console.log("SceneManager: No objects to load for current state");
+      return;
+    }
+
+    console.log(
+      `SceneManager: Loading ${objectsToLoad.length} objects for current state`
+    );
+
+    const loadPromises = objectsToLoad.map((objectData) =>
+      this.loadObject(objectData).catch((error) => {
+        console.error(
+          `SceneManager: Failed to load object "${objectData.id}":`,
+          error
+        );
+        // Continue loading other objects even if one fails
+        return null;
+      })
+    );
+
+    await Promise.all(loadPromises);
+  }
+
+  /**
+   * Load a single scene object
+   * @param {Object} objectData - Object data from sceneData.js
+   * @returns {Promise<THREE.Object3D>}
+   */
+  async loadObject(objectData) {
+    const { id, type } = objectData;
+
+    // Check if already loading
+    if (this.loadingPromises.has(id)) {
+      return this.loadingPromises.get(id);
+    }
+
+    // Check if already loaded
+    if (this.objects.has(id)) {
+      console.warn(`SceneManager: Object "${id}" is already loaded`);
+      return this.objects.get(id);
+    }
+
+    let loadPromise;
+
+    switch (type) {
+      case "splat":
+        loadPromise = this._loadSplat(objectData);
+        break;
+      case "gltf":
+        loadPromise = this._loadGLTF(objectData);
+        break;
+      default:
+        console.error(`SceneManager: Unknown object type "${type}"`);
+        return null;
+    }
+
+    this.loadingPromises.set(id, loadPromise);
+
+    try {
+      const object = await loadPromise;
+      this.objects.set(id, object);
+      this.loadingPromises.delete(id);
+      console.log(`SceneManager: Loaded "${id}" (${type})`);
+      return object;
+    } catch (error) {
+      this.loadingPromises.delete(id);
+      console.error(`SceneManager: Error loading "${id}":`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Load a splat mesh
+   * @param {Object} objectData - Splat object data
+   * @returns {Promise<SplatMesh>}
+   * @private
+   */
+  async _loadSplat(objectData) {
+    const { path, position, rotation, scale, quaternion } = objectData;
+
+    const splatMesh = new SplatMesh({ url: path });
+
+    // Set quaternion if provided
+    if (quaternion) {
+      splatMesh.quaternion.set(
+        quaternion[0],
+        quaternion[1],
+        quaternion[2],
+        quaternion[3]
+      ); // [x, y, z, w]
+    } else if (rotation) {
+      splatMesh.rotation.set(rotation[0], rotation[1], rotation[2]);
+    }
+
+    // Set position
+    if (position) {
+      splatMesh.position.set(position[0], position[1], position[2]);
+    }
+
+    // Set scale
+    if (scale) {
+      if (Array.isArray(scale)) {
+        splatMesh.scale.set(scale[0], scale[1], scale[2]);
+      } else {
+        splatMesh.scale.setScalar(scale);
+      }
+    }
+
+    this.scene.add(splatMesh);
+
+    // Wait for splat to initialize
+    await splatMesh.initialized;
+
+    return splatMesh;
+  }
+
+  /**
+   * Load a GLTF model
+   * @param {Object} objectData - GLTF object data
+   * @returns {Promise<THREE.Object3D>}
+   * @private
+   */
+  _loadGLTF(objectData) {
+    return new Promise((resolve, reject) => {
+      const { id, path, position, rotation, scale, options, animations } =
+        objectData;
+
+      this.gltfLoader.load(
+        path,
+        (gltf) => {
+          const model = gltf.scene;
+
+          // Traverse all children and ensure materials are visible
+          model.traverse((child) => {
+            if (child.isMesh) {
+              if (child.material) {
+                child.material.needsUpdate = true;
+              }
+            }
+          });
+
+          // Create container group if requested
+          let finalObject;
+          if (options && options.useContainer) {
+            const container = new THREE.Group();
+            container.add(model);
+            finalObject = container;
+          } else {
+            finalObject = model;
+          }
+
+          // Set position
+          if (position) {
+            finalObject.position.set(position[0], position[1], position[2]);
+          }
+
+          // Set rotation
+          if (rotation) {
+            finalObject.rotation.set(rotation[0], rotation[1], rotation[2]);
+          }
+
+          // Set scale
+          if (scale) {
+            if (Array.isArray(scale)) {
+              finalObject.scale.set(scale[0], scale[1], scale[2]);
+            } else {
+              finalObject.scale.setScalar(scale);
+            }
+          }
+
+          // Setup animations if available
+          if (
+            animations &&
+            animations.length > 0 &&
+            gltf.animations &&
+            gltf.animations.length > 0
+          ) {
+            this._setupAnimations(id, model, gltf.animations, animations);
+          }
+
+          this.scene.add(finalObject);
+          resolve(finalObject);
+        },
+        undefined,
+        (error) => {
+          reject(error);
+        }
+      );
+    });
+  }
+
+  /**
+   * Setup animations for a GLTF model
+   * @param {string} objectId - Object ID
+   * @param {THREE.Object3D} model - The loaded model
+   * @param {Array} clips - Animation clips from GLTF
+   * @param {Array} animationConfigs - Animation configurations from sceneData
+   * @private
+   */
+  _setupAnimations(objectId, model, clips, animationConfigs) {
+    const mixer = new THREE.AnimationMixer(model);
+    this.animationMixers.set(objectId, mixer);
+
+    animationConfigs.forEach((config) => {
+      // Find the clip
+      let clip;
+      if (config.clipName) {
+        clip = clips.find((c) => c.name === config.clipName);
+      } else {
+        // Use first clip if no name specified
+        clip = clips[0];
+      }
+
+      if (!clip) {
+        console.warn(
+          `SceneManager: Animation clip not found for "${config.id}"`
+        );
+        return;
+      }
+
+      // Create action
+      const action = mixer.clipAction(clip);
+      action.loop = config.loop ? THREE.LoopRepeat : THREE.LoopOnce;
+      action.timeScale = config.timeScale || 1.0;
+      action.clampWhenFinished = !config.loop;
+
+      // Store action and config
+      this.animationActions.set(config.id, action);
+      this.animationData.set(config.id, config);
+
+      console.log(
+        `SceneManager: Registered animation "${config.id}" for object "${objectId}"`
+      );
+    });
+  }
+
+  /**
+   * Get a loaded object by ID
+   * @param {string} id - Object ID
+   * @returns {THREE.Object3D|null}
+   */
+  getObject(id) {
+    return this.objects.get(id) || null;
+  }
+
+  /**
+   * Remove an object from the scene
+   * @param {string} id - Object ID
+   */
+  removeObject(id) {
+    const object = this.objects.get(id);
+    if (object) {
+      this.scene.remove(object);
+      // Dispose of geometries and materials
+      object.traverse((child) => {
+        if (child.geometry) {
+          child.geometry.dispose();
+        }
+        if (child.material) {
+          if (Array.isArray(child.material)) {
+            child.material.forEach((material) => material.dispose());
+          } else {
+            child.material.dispose();
+          }
+        }
+      });
+      this.objects.delete(id);
+      console.log(`SceneManager: Removed "${id}"`);
+    }
+  }
+
+  /**
+   * Check if an object is loaded
+   * @param {string} id - Object ID
+   * @returns {boolean}
+   */
+  hasObject(id) {
+    return this.objects.has(id);
+  }
+
+  /**
+   * Check if an object is currently loading
+   * @param {string} id - Object ID
+   * @returns {boolean}
+   */
+  isLoading(id) {
+    return this.loadingPromises.has(id);
+  }
+
+  /**
+   * Get all loaded object IDs
+   * @returns {Array<string>}
+   */
+  getObjectIds() {
+    return Array.from(this.objects.keys());
+  }
+
+  /**
+   * Play an animation by ID
+   * @param {string} animationId - Animation ID from sceneData
+   */
+  playAnimation(animationId) {
+    const action = this.animationActions.get(animationId);
+    if (action) {
+      action.reset();
+      action.play();
+      console.log(`SceneManager: Playing animation "${animationId}"`);
+    } else {
+      console.warn(`SceneManager: Animation "${animationId}" not found`);
+    }
+  }
+
+  /**
+   * Stop an animation by ID
+   * @param {string} animationId - Animation ID from sceneData
+   */
+  stopAnimation(animationId) {
+    const action = this.animationActions.get(animationId);
+    if (action) {
+      action.stop();
+      console.log(`SceneManager: Stopped animation "${animationId}"`);
+    }
+  }
+
+  /**
+   * Check if an animation is currently playing
+   * @param {string} animationId - Animation ID
+   * @returns {boolean}
+   */
+  isAnimationPlaying(animationId) {
+    const action = this.animationActions.get(animationId);
+    return action ? action.isRunning() : false;
+  }
+
+  /**
+   * Update all animation mixers
+   * @param {number} dt - Delta time in seconds
+   */
+  update(dt) {
+    for (const mixer of this.animationMixers.values()) {
+      mixer.update(dt);
+    }
+  }
+
+  /**
+   * Update animations based on game state
+   * @param {Object} gameState - Current game state
+   */
+  updateAnimationsForState(gameState) {
+    if (!gameState || !gameState.currentState) return;
+
+    const currentState = gameState.currentState;
+    const matchesToken = (token) =>
+      token === currentState || gameState[token] === true;
+
+    for (const [animationId, config] of this.animationData) {
+      if (!config.autoPlay) continue;
+
+      const shouldPlay = config.playOn && config.playOn.some(matchesToken);
+      const shouldStop = config.stopOn && config.stopOn.some(matchesToken);
+      const isPlaying = this.isAnimationPlaying(animationId);
+
+      if (shouldStop && isPlaying) {
+        this.stopAnimation(animationId);
+      } else if (shouldPlay && !isPlaying && !shouldStop) {
+        this.playAnimation(animationId);
+      }
+    }
+  }
+
+  /**
+   * Clean up all scene objects
+   */
+  destroy() {
+    // Stop all animations
+    for (const action of this.animationActions.values()) {
+      action.stop();
+    }
+
+    // Clear animation data
+    this.animationMixers.clear();
+    this.animationActions.clear();
+    this.animationData.clear();
+
+    // Remove all objects
+    for (const id of this.objects.keys()) {
+      this.removeObject(id);
+    }
+    this.objects.clear();
+    this.loadingPromises.clear();
+  }
+}
+
+export default SceneManager;

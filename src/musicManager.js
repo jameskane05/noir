@@ -274,6 +274,23 @@ class MusicManager {
   }
 
   /**
+   * Get the currently playing track name
+   * @returns {string|null} Current track name or null
+   */
+  getCurrentTrack() {
+    return this.currentTrack;
+  }
+
+  /**
+   * Check if a track is currently playing
+   * @param {string} trackName - Name of the track
+   * @returns {boolean} True if the track is playing
+   */
+  isTrackPlaying(trackName) {
+    return this.currentTrack === trackName && this.tracks[trackName]?.playing();
+  }
+
+  /**
    * Update method - call this in your animation loop
    * @param {number} dt - Delta time in seconds
    */

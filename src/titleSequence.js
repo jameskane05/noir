@@ -11,8 +11,10 @@ export class TitleSequence {
     this.outroDuration = options.outroDuration || 2.0; // seconds
     this.staggerDelay = options.staggerDelay || 1.0; // delay between splats
     this.disperseDistance = options.disperseDistance || 5.0;
+    this.onComplete = options.onComplete || null; // Callback when sequence completes
 
     this.time = 0;
+    this.completed = false; // Track if completion callback has been called
     this.totalDuration =
       this.introDuration +
       this.staggerDelay * (splats.length - 1) +
@@ -207,6 +209,14 @@ export class TitleSequence {
         splat.update(this.time * 1000);
       }
     });
+
+    // Check if sequence just completed
+    if (this.isComplete() && !this.completed) {
+      this.completed = true;
+      if (this.onComplete) {
+        this.onComplete();
+      }
+    }
   }
 
   isComplete() {

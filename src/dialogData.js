@@ -7,20 +7,30 @@
  * - captions: Array of caption objects with:
  *   - text: The text to display
  *   - duration: How long to show this caption (in seconds)
+ * - requiresState: Optional object with key-value pairs that must match game state
+ *   - Example: { titleSequenceComplete: true }
+ * - activationCondition: Optional function that receives gameState and returns true if dialog should play
+ *   - Example: (state) => state.chapter === 2 && !state.hasSeenDialog
+ * - once: If true, only play once (tracked automatically)
+ * - priority: Higher priority dialogs are checked first (default: 0)
+ * - autoPlay: If true, automatically play when conditions are met (default: false)
+ * - delay: Delay in seconds before playing after state conditions are met (default: 0)
  *
  * Usage:
- * import { dialogSequences } from './dialogData.js';
+ * import { dialogSequences, getDialogForState } from './dialogData.js';
  * dialogManager.playDialog(dialogSequences.intro);
  */
 
+import { GAME_STATES } from "./gameData.js";
+
 export const dialogSequences = {
-  // Example intro dialog
+  // Intro dialog - plays after title sequence
   intro: {
     id: "intro",
     audio: "./audio/dialog/00-on-her-trail.mp3",
     captions: [
-      { text: "I’d been on her trail for weeks.", duration: 2.0 },
-      { text: "An art thief, she’d swindled society-types,", duration: 3.5 },
+      { text: "I'd been on her trail for weeks.", duration: 2.0 },
+      { text: "An art thief, she'd swindled society-types,", duration: 3.5 },
       {
         text: "hauling in more than a few of the Old Masters.",
         duration: 2.5,
@@ -42,6 +52,11 @@ export const dialogSequences = {
         duration: 2.5,
       },
     ],
+    requiresState: { currentState: GAME_STATES.TITLE_SEQUENCE_COMPLETE },
+    once: true,
+    autoPlay: true,
+    priority: 100,
+    delay: 1.0, // Wait 1 second after title sequence completes
   },
 
   // Example intro dialog
@@ -56,6 +71,11 @@ export const dialogSequences = {
         duration: 2.5,
       },
     ],
+    requiresState: { currentState: GAME_STATES.ANSWERED_PHONE },
+    once: true,
+    autoPlay: true,
+    priority: 100,
+    delay: 2.0, // Wait 2 seconds after answering phone
   },
 
   // Example character greeting
@@ -71,48 +91,67 @@ export const dialogSequences = {
       },
     ],
   },
-
-  // Example tutorial
-  tutorial: {
-    id: "tutorial",
-    audio: "./audio/dialog/tutorial.mp3",
-    captions: [
-      { text: "Use WASD to move around.", duration: 3.0 },
-      { text: "Hold Shift to sprint.", duration: 2.5 },
-      { text: "Press O to switch music.", duration: 2.5 },
-    ],
-  },
-
-  // Example warning
-  warning: {
-    id: "warning",
-    audio: "./audio/dialog/warning.mp3",
-    captions: [
-      { text: "Something doesn't feel right...", duration: 3.0 },
-      { text: "Be careful.", duration: 2.0 },
-    ],
-  },
-
-  // Add your dialog sequences here following the same format:
-  // sequenceName: {
-  //   id: "unique-id",
-  //   audio: "./audio/dialog/filename.mp3",
-  //   captions: [
-  //     { text: "First line of dialog", duration: 3.0 },
-  //     { text: "Second line of dialog", duration: 2.5 },
-  //   ],
-  // },
 };
 
-// Optional: Dialog triggers for game events
-export const dialogTriggers = {
-  onGameStart: "intro",
-  onFirstEncounter: "greeting",
-  onTutorialStart: "tutorial",
-  onDangerNear: "warning",
+/**
+ * Get dialog sequences that should play for the current game state
+ * @param {Object} gameState - Current game state
+ * @param {Set} playedDialogs - Set of dialog IDs that have already been played
+ * @returns {Array} Array of dialog sequences that match conditions
+ */
+export function getDialogsForState(gameState, playedDialogs = new Set()) {
+  // Convert to array and filter for autoPlay dialogs only
+  const autoPlayDialogs = Object.values(dialogSequences).filter(
+    (dialog) => dialog.autoPlay === true
+  );
 
-  // Add your triggers here:
-  // eventName: "dialogSequenceId",
-};
+  // Sort by priority (descending)
+  const sortedDialogs = autoPlayDialogs.sort(
+    (a, b) => (b.priority || 0) - (a.priority || 0)
+  );
+
+  const matchingDialogs = [];
+
+  for (const dialog of sortedDialogs) {
+    // Skip if already played and marked as "once"
+    if (dialog.once && playedDialogs.has(dialog.id)) {
+      continue;
+    }
+
+    // Check requiresState (simple key-value matching)
+    if (dialog.requiresState) {
+      let stateMatches = true;
+      for (const [key, value] of Object.entries(dialog.requiresState)) {
+        if (gameState[key] !== value) {
+          stateMatches = false;
+          break;
+        }
+      }
+      if (!stateMatches) continue;
+    }
+
+    // Check activationCondition (custom function)
+    if (dialog.activationCondition) {
+      if (typeof dialog.activationCondition === "function") {
+        try {
+          if (!dialog.activationCondition(gameState)) {
+            continue;
+          }
+        } catch (error) {
+          console.warn(
+            `DialogData: Error in activationCondition for dialog "${dialog.id}":`,
+            error
+          );
+          continue;
+        }
+      }
+    }
+
+    // If we get here, all conditions passed
+    matchingDialogs.push(dialog);
+  }
+
+  return matchingDialogs;
+}
 
 export default dialogSequences;

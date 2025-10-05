@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { Howl } from "howler";
 import BreathingSystem from "./wip/breathingSystem.js";
 
 class CharacterController {
@@ -48,7 +49,7 @@ class CharacterController {
 
     // Settings
     this.baseSpeed = 4.0;
-    this.sprintMultiplier = 1.4; // Reduced from 2.0 (30% slower sprint)
+    this.sprintMultiplier = 1.75; // Reduced from 2.0 (30% slower sprint)
     this.cameraHeight = 1.6;
     this.mouseSensitivity = 0.0025;
     this.cameraSmoothingFactor = 0.15;
@@ -76,28 +77,24 @@ class CharacterController {
   }
 
   loadFootstepAudio() {
-    const audioLoader = new THREE.AudioLoader();
-
-    audioLoader.load(
-      "./audio/sfx/gravel-steps.ogg",
-      (buffer) => {
-        this.footstepSound = new THREE.Audio(this.audioListener);
-        this.footstepSound.setBuffer(buffer);
-        this.footstepSound.setLoop(true);
-        this.footstepSound.setVolume(0.2);
-
-        // Register with SFX manager if available
-        if (this.sfxManager) {
-          this.sfxManager.registerSound("footsteps", this.footstepSound, 0.2);
-        }
-
+    // Load footstep audio using Howler.js
+    this.footstepSound = new Howl({
+      src: ["./audio/sfx/gravel-steps.ogg"],
+      loop: true,
+      volume: 0.2,
+      preload: true,
+      onload: () => {
         console.log("Footstep audio loaded successfully");
       },
-      undefined,
-      (error) => {
+      onloaderror: (id, error) => {
         console.warn("Failed to load footstep audio:", error);
-      }
-    );
+      },
+    });
+
+    // Register with SFX manager if available
+    if (this.sfxManager) {
+      this.sfxManager.registerSound("footsteps", this.footstepSound, 0.2);
+    }
 
     // Register breathing system volume control with SFX manager
     if (this.sfxManager && this.breathingSystem) {
@@ -125,6 +122,9 @@ class CharacterController {
     this.lookAtOnComplete = onComplete;
     this.inputDisabled = true;
 
+    // Clear all key states to prevent stuck keys
+    this.keys = { w: false, a: false, s: false, d: false, shift: false };
+
     // Store current camera orientation as quaternion
     this.lookAtStartQuat.setFromEuler(
       new THREE.Euler(this.pitch, this.yaw, 0, "YXZ")
@@ -135,11 +135,14 @@ class CharacterController {
       .subVectors(targetPosition, this.camera.position)
       .normalize();
 
-    // Create a temporary object to calculate target quaternion
-    const tempObj = new THREE.Object3D();
-    tempObj.position.copy(this.camera.position);
-    tempObj.lookAt(targetPosition);
-    this.lookAtEndQuat.copy(tempObj.quaternion);
+    // Calculate target yaw and pitch from direction
+    const targetYaw = Math.atan2(-direction.x, -direction.z);
+    const targetPitch = Math.asin(direction.y);
+
+    // Create target quaternion from target euler angles
+    this.lookAtEndQuat.setFromEuler(
+      new THREE.Euler(targetPitch, targetYaw, 0, "YXZ")
+    );
 
     console.log(`CharacterController: Looking at target over ${duration}s`);
   }
@@ -153,6 +156,9 @@ class CharacterController {
 
     this.isLookingAt = false;
     this.inputDisabled = false;
+
+    // Clear all key states to prevent stuck keys
+    this.keys = { w: false, a: false, s: false, d: false, shift: false };
 
     if (updateYawPitch) {
       // Update yaw and pitch to match current camera orientation
@@ -218,7 +224,7 @@ class CharacterController {
   calculateIdleHeadbob() {
     // Gentle breathing/idle animation - half strength of walking
     const idleFrequency = 0.8; // Slow breathing rate
-    const idleVerticalAmp = 0.02; // Half of walk vertical (0.04)
+    const idleVerticalAmp = 0.015; // Half of walk vertical (0.04)
     const idleHorizontalAmp = 0.015; // Half of walk horizontal (0.03)
 
     const verticalBob =
@@ -271,6 +277,9 @@ class CharacterController {
         // Look-at complete
         this.lookAtProgress = 1.0;
         this.isLookingAt = false;
+
+        // Clear all key states to prevent stuck keys
+        this.keys = { w: false, a: false, s: false, d: false, shift: false };
 
         // Call completion callback if provided
         if (this.lookAtOnComplete) {
@@ -368,7 +377,7 @@ class CharacterController {
       // Adjust playback rate based on sprint
       if (this.isPlayingFootsteps) {
         const playbackRate = this.keys.shift ? 1.5 : 1.0;
-        this.footstepSound.setPlaybackRate(playbackRate);
+        this.footstepSound.rate(playbackRate);
       }
     }
 

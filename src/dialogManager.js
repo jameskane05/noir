@@ -29,6 +29,13 @@ class DialogManager {
         options.captionElement || this.createCaptionElement();
       this.captionSplat = null;
       this.useSplats = false;
+
+      // Apply custom caption styling if provided, otherwise use defaults
+      if (options.captionStyle) {
+        this.setCaptionStyle(options.captionStyle);
+      } else {
+        this.applyDefaultCaptionStyle();
+      }
     }
 
     this.baseVolume = options.audioVolume || 0.8;
@@ -40,6 +47,9 @@ class DialogManager {
     this.captionTimer = 0;
     this.isPlaying = false;
     this.onCompleteCallback = null;
+
+    // Delayed playback support
+    this.pendingDialogs = new Map(); // Map of dialogId -> { dialogData, onComplete, timer, delay }
 
     // Update volume based on SFX manager if available
     if (this.sfxManager) {
@@ -213,6 +223,72 @@ class DialogManager {
    * @param {Function} onComplete - Optional callback when dialog finishes
    */
   playDialog(dialogData, onComplete = null) {
+    // Check if this dialog has a delay
+    const delay = dialogData.delay || 0;
+
+    if (delay > 0) {
+      // Schedule delayed playback
+      this.scheduleDelayedDialog(dialogData, onComplete, delay);
+      return;
+    }
+
+    // Play immediately
+    this._playDialogImmediate(dialogData, onComplete);
+  }
+
+  /**
+   * Schedule a dialog to play after a delay
+   * @param {Object} dialogData - Dialog data object
+   * @param {Function} onComplete - Optional callback
+   * @param {number} delay - Delay in seconds
+   * @private
+   */
+  scheduleDelayedDialog(dialogData, onComplete, delay) {
+    // Don't schedule if already pending or playing
+    if (this.pendingDialogs.has(dialogData.id)) {
+      console.warn(
+        `DialogManager: Dialog "${dialogData.id}" is already scheduled`
+      );
+      return;
+    }
+
+    if (this.isPlaying && this.currentDialog?.id === dialogData.id) {
+      console.warn(
+        `DialogManager: Dialog "${dialogData.id}" is already playing`
+      );
+      return;
+    }
+
+    console.log(
+      `DialogManager: Scheduling dialog "${dialogData.id}" with ${delay}s delay`
+    );
+
+    this.pendingDialogs.set(dialogData.id, {
+      dialogData,
+      onComplete,
+      timer: 0,
+      delay,
+    });
+  }
+
+  /**
+   * Cancel a pending delayed dialog
+   * @param {string} dialogId - Dialog ID to cancel
+   */
+  cancelDelayedDialog(dialogId) {
+    if (this.pendingDialogs.has(dialogId)) {
+      console.log(`DialogManager: Cancelled delayed dialog "${dialogId}"`);
+      this.pendingDialogs.delete(dialogId);
+    }
+  }
+
+  /**
+   * Immediately play a dialog (internal method)
+   * @param {Object} dialogData - Dialog data object
+   * @param {Function} onComplete - Optional callback
+   * @private
+   */
+  _playDialogImmediate(dialogData, onComplete) {
     if (this.isPlaying) {
       console.warn("DialogManager: Already playing dialog");
       return;
@@ -347,6 +423,22 @@ class DialogManager {
    * @param {number} dt - Delta time in seconds
    */
   update(dt) {
+    // Update pending delayed dialogs
+    if (this.pendingDialogs.size > 0) {
+      for (const [dialogId, pending] of this.pendingDialogs) {
+        pending.timer += dt;
+
+        // Check if delay has elapsed and no dialog is currently playing
+        if (pending.timer >= pending.delay && !this.isPlaying) {
+          console.log(`DialogManager: Playing delayed dialog "${dialogId}"`);
+          this.pendingDialogs.delete(dialogId);
+          this._playDialogImmediate(pending.dialogData, pending.onComplete);
+          break; // Only play one dialog per frame
+        }
+      }
+    }
+
+    // Update current dialog captions
     if (!this.isPlaying || this.captionQueue.length === 0) {
       return;
     }
@@ -373,6 +465,22 @@ class DialogManager {
    */
   setCaptionStyle(styles) {
     Object.assign(this.captionElement.style, styles);
+  }
+
+  /**
+   * Apply default caption styling
+   */
+  applyDefaultCaptionStyle() {
+    this.setCaptionStyle({
+      fontFamily: "LePorsche, Arial, sans-serif",
+      fontSize: "28px",
+      background: "transparent",
+      padding: "20px 40px",
+      color: "#ffffff",
+      textShadow: "2px 2px 8px rgba(0, 0, 0, 0.9), 0 0 20px rgba(0, 0, 0, 0.7)",
+      maxWidth: "90%",
+      lineHeight: "1.4",
+    });
   }
 
   /**
@@ -406,6 +514,23 @@ class DialogManager {
    */
   isDialogPlaying() {
     return this.isPlaying;
+  }
+
+  /**
+   * Check if a dialog is pending (scheduled with delay)
+   * @param {string} dialogId - Dialog ID to check
+   * @returns {boolean}
+   */
+  isDialogPending(dialogId) {
+    return this.pendingDialogs.has(dialogId);
+  }
+
+  /**
+   * Check if any dialog is pending
+   * @returns {boolean}
+   */
+  hasDialogsPending() {
+    return this.pendingDialogs.size > 0;
   }
 
   /**
@@ -449,6 +574,9 @@ class DialogManager {
    */
   destroy() {
     this.stopDialog();
+
+    // Clear pending dialogs
+    this.pendingDialogs.clear();
 
     // Remove resize listener
     if (this.resizeHandler) {

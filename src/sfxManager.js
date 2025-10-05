@@ -1,30 +1,39 @@
+import { Howl, Howler } from "howler";
+
 /**
  * SFXManager - Manages all sound effects with master volume control
  *
  * Features:
- * - Centralized SFX volume control
+ * - Centralized SFX volume control using Howler.js
  * - Register/unregister individual sound effects
  * - Master volume that scales all SFX
  * - Individual sound volume relative to master
+ * - Support for spatial/positional audio
  */
 
 class SFXManager {
   constructor(options = {}) {
     this.masterVolume = options.masterVolume || 0.5;
-    this.sounds = new Map(); // Map of id -> {audio, baseVolume}
+    this.sounds = new Map(); // Map of id -> {howl, baseVolume}
     this.dialogManager = null; // Will be set externally
+
+    // Set global Howler volume (we'll manage individual sounds separately)
+    Howler.volume(1.0);
   }
 
   /**
    * Register a sound effect
    * @param {string} id - Unique identifier for this sound
-   * @param {THREE.Audio} audio - THREE.Audio instance
+   * @param {Howl|Object} howl - Howler.js Howl instance or object with setVolume method
    * @param {number} baseVolume - Base volume for this sound (0-1), defaults to 1.0
    */
-  registerSound(id, audio, baseVolume = 1.0) {
+  registerSound(id, howl, baseVolume = 1.0) {
     this.sounds.set(id, {
-      audio,
+      howl,
       baseVolume,
+      isProxy:
+        typeof howl.volume !== "function" &&
+        typeof howl.setVolume === "function",
     });
 
     // Apply current master volume
@@ -70,6 +79,79 @@ class SFXManager {
   }
 
   /**
+   * Bulk-register sounds from a data object (e.g., sfxData.js)
+   * @param {Record<string, any>} soundsData - Map of id -> sound descriptor
+   */
+  registerSoundsFromData(soundsData) {
+    if (!soundsData) return;
+    // Keep a reference to the raw data definitions for state-driven rules
+    this._data = soundsData;
+    Object.values(soundsData).forEach((sound) => {
+      const howl = new Howl({
+        src: sound.src,
+        loop: sound.loop,
+        volume: sound.volume,
+        preload: sound.preload !== false,
+      });
+
+      // Apply spatial attributes after creation
+      if (sound.spatial) {
+        if (sound.position) howl.pos(...sound.position);
+        if (sound.pannerAttr) howl.pannerAttr(sound.pannerAttr);
+      }
+
+      this.registerSound(sound.id, howl, sound.volume ?? 1.0);
+    });
+  }
+
+  /**
+   * Attempt to play sounds based on current state.
+   * @param {Object} state - Current game state (expects state.currentState)
+   */
+  autoplayForState(state) {
+    if (!state || !state.currentState) return;
+    const current = state.currentState;
+    const matchesToken = (token) => token === current || state[token] === true;
+
+    for (const [id] of this.sounds) {
+      const def = (this._data && this._data[id]) || null;
+      if (!def || !Array.isArray(def.playOn) || def.playOn.length === 0)
+        continue;
+
+      const shouldAutoPlay =
+        def.playOn.some(matchesToken) &&
+        !(Array.isArray(def.stopOn) && def.stopOn.some(matchesToken));
+      if (shouldAutoPlay && !this.isPlaying(id)) {
+        try {
+          this.play(id);
+        } catch (e) {
+          // Ignore autoplay errors, user gesture will trigger later
+        }
+      }
+    }
+  }
+
+  /**
+   * Stop sounds that should stop on entering a given state.
+   * @param {Object} state - Current game state
+   */
+  stopForState(state) {
+    if (!state || !state.currentState) return;
+    const current = state.currentState;
+    const matchesToken = (token) => token === current || state[token] === true;
+
+    for (const [id] of this.sounds) {
+      const def = (this._data && this._data[id]) || null;
+      if (!def || !Array.isArray(def.stopOn) || def.stopOn.length === 0)
+        continue;
+
+      if (def.stopOn.some(matchesToken)) {
+        this.stop(id);
+      }
+    }
+  }
+
+  /**
    * Get current master volume
    * @returns {number}
    */
@@ -85,11 +167,17 @@ class SFXManager {
     const soundData = this.sounds.get(id);
     if (!soundData) return;
 
-    const { audio, baseVolume } = soundData;
+    const { howl, baseVolume, isProxy } = soundData;
     const finalVolume = baseVolume * this.masterVolume;
 
-    if (audio && audio.setVolume) {
-      audio.setVolume(finalVolume);
+    if (howl) {
+      if (isProxy) {
+        // Legacy proxy object with setVolume method (e.g., breathing system)
+        howl.setVolume(finalVolume);
+      } else {
+        // Howler.js Howl instance
+        howl.volume(finalVolume);
+      }
     }
   }
 
@@ -107,34 +195,51 @@ class SFXManager {
   }
 
   /**
-   * Get a registered sound
+   * Get a registered sound (Howl instance)
    * @param {string} id - Sound identifier
-   * @returns {THREE.Audio|null}
+   * @returns {Howl|null}
    */
   getSound(id) {
     const soundData = this.sounds.get(id);
-    return soundData ? soundData.audio : null;
+    return soundData ? soundData.howl : null;
   }
 
   /**
    * Play a sound by ID
    * @param {string} id - Sound identifier
+   * @returns {number|null} Sound ID from Howler (for stopping specific instances)
    */
   play(id) {
     const soundData = this.sounds.get(id);
-    if (soundData && soundData.audio) {
-      soundData.audio.play();
+    if (soundData && soundData.howl) {
+      if (soundData.isProxy) {
+        // Proxy objects don't have play method
+        console.warn(`SFXManager: Cannot play proxy object "${id}"`);
+        return null;
+      }
+      return soundData.howl.play();
     }
+    return null;
   }
 
   /**
    * Stop a sound by ID
    * @param {string} id - Sound identifier
+   * @param {number} soundId - Optional: specific sound instance ID from play()
    */
-  stop(id) {
+  stop(id, soundId = null) {
     const soundData = this.sounds.get(id);
-    if (soundData && soundData.audio) {
-      soundData.audio.stop();
+    if (soundData && soundData.howl) {
+      if (soundData.isProxy) {
+        // Proxy objects don't have stop method
+        console.warn(`SFXManager: Cannot stop proxy object "${id}"`);
+        return;
+      }
+      if (soundId !== null) {
+        soundData.howl.stop(soundId);
+      } else {
+        soundData.howl.stop();
+      }
     }
   }
 
@@ -143,8 +248,48 @@ class SFXManager {
    */
   stopAll() {
     for (const [id, soundData] of this.sounds) {
-      if (soundData.audio && soundData.audio.isPlaying) {
-        soundData.audio.stop();
+      if (soundData.howl) {
+        soundData.howl.stop();
+      }
+    }
+  }
+
+  /**
+   * Check if a sound is currently playing
+   * @param {string} id - Sound identifier
+   * @returns {boolean}
+   */
+  isPlaying(id) {
+    const soundData = this.sounds.get(id);
+    if (soundData && soundData.howl && !soundData.isProxy) {
+      return soundData.howl.playing();
+    }
+    return false;
+  }
+
+  /**
+   * Fade a sound's volume
+   * @param {string} id - Sound identifier
+   * @param {number} from - Starting volume (0-1)
+   * @param {number} to - Target volume (0-1)
+   * @param {number} duration - Duration in milliseconds
+   * @param {number} soundId - Optional: specific sound instance ID
+   */
+  fade(id, from, to, duration, soundId = null) {
+    const soundData = this.sounds.get(id);
+    if (soundData && soundData.howl) {
+      if (soundData.isProxy) {
+        // Proxy objects don't have fade method
+        console.warn(`SFXManager: Cannot fade proxy object "${id}"`);
+        return;
+      }
+      const fromScaled = from * this.masterVolume;
+      const toScaled = to * this.masterVolume;
+
+      if (soundId !== null) {
+        soundData.howl.fade(fromScaled, toScaled, duration, soundId);
+      } else {
+        soundData.howl.fade(fromScaled, toScaled, duration);
       }
     }
   }
@@ -162,6 +307,11 @@ class SFXManager {
    */
   destroy() {
     this.stopAll();
+    for (const [id, soundData] of this.sounds) {
+      if (soundData.howl && !soundData.isProxy) {
+        soundData.howl.unload();
+      }
+    }
     this.sounds.clear();
   }
 }
