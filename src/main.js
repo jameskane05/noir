@@ -6,6 +6,7 @@ import PhysicsManager from "./physicsManager.js";
 import CharacterController from "./characterController.js";
 import MusicManager from "./musicManager.js";
 import SFXManager from "./sfxManager.js";
+import LightManager from "./lightManager.js";
 import OptionsMenu from "./optionsMenu.js";
 import DialogManager from "./dialogManager.js";
 import GameManager from "./gameManager.js";
@@ -58,21 +59,32 @@ scene.add(spark);
 // Initialize scene manager (objects will be loaded by gameManager based on state)
 const sceneManager = new SceneManager(scene);
 
-// Add lighting for standard meshes
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.5); // Soft white ambient light
-scene.add(ambientLight);
+// Initialize light manager
+const lightManager = new LightManager(scene);
 
-const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8); // Main directional light
-directionalLight.position.set(10, 20, 10);
-directionalLight.castShadow = true;
-scene.add(directionalLight);
+// Add standard scene lighting
+lightManager.createAmbientLight({
+  id: "ambient",
+  color: 0xffffff,
+  intensity: 0.5,
+});
 
-// Optional: Add a subtle fill light from the opposite direction
-const fillLight = new THREE.DirectionalLight(0x4466ff, 0.3); // Blueish fill
-fillLight.position.set(-10, 10, -10);
-scene.add(fillLight);
+lightManager.createDirectionalLight({
+  id: "main-directional",
+  color: 0xffffff,
+  intensity: 0.8,
+  position: [10, 20, 10],
+  castShadow: true,
+});
 
-console.log("Scene gltf lighting initialized");
+lightManager.createDirectionalLight({
+  id: "fill",
+  color: 0x4466ff,
+  intensity: 0.3,
+  position: [-10, 10, -10],
+});
+
+console.log("Scene lighting initialized");
 
 // Initialize the physics manager
 const physicsManager = new PhysicsManager();
@@ -97,8 +109,11 @@ const character = physicsManager.createCharacter(spawnPos, {
 });
 // Removed visual mesh for character;
 
-// Initialize SFX manager
-const sfxManager = new SFXManager({ masterVolume: 0.5 });
+// Initialize SFX manager (pass lightManager for audio-reactive lights)
+const sfxManager = new SFXManager({
+  masterVolume: 0.5,
+  lightManager: lightManager,
+});
 
 // Initialize character controller (will be disabled until intro completes)
 const characterController = new CharacterController(
@@ -203,6 +218,10 @@ await gameManager.initialize({
   characterController: characterController,
   cameraAnimationSystem: cameraAnimationSystem,
   sceneManager: sceneManager,
+  lightManager: lightManager,
+  physicsManager: physicsManager,
+  scene: scene,
+  camera: camera,
 });
 
 // Initialize collider manager with scene reference for cleanup
@@ -289,6 +308,12 @@ renderer.setAnimationLoop(function animate(time) {
 
   // Always update scene manager (handles GLTF animations)
   sceneManager.update(dt);
+
+  // Always update game manager (handles receiver lerp, etc.)
+  gameManager.update(dt);
+
+  // Always update audio-reactive lights
+  lightManager.updateReactiveLights(dt);
 
   // Update lighting
   //lightingSystem.updateFlickering(t);

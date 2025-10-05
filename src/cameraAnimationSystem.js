@@ -142,6 +142,39 @@ class CameraAnimationSystem {
     this.isPlaying = false;
     this.currentAnimation = null;
 
+    // Update physics body position to match camera's final position
+    if (this.characterController && this.characterController.character) {
+      const character = this.characterController.character;
+
+      // Calculate physics body position (camera position minus camera height offset)
+      const cameraHeight = this.characterController.cameraHeight || 1.6;
+      const bodyPosition = {
+        x: this.camera.position.x,
+        y: this.camera.position.y - cameraHeight,
+        z: this.camera.position.z,
+      };
+
+      // Update physics body position
+      character.setTranslation(bodyPosition, true);
+
+      // Update physics body rotation to match camera's yaw (ignore pitch for capsule)
+      const euler = new THREE.Euler().setFromQuaternion(
+        this.camera.quaternion,
+        "YXZ"
+      );
+      const bodyQuat = new THREE.Quaternion().setFromEuler(
+        new THREE.Euler(0, euler.y, 0, "YXZ")
+      );
+      character.setRotation(
+        { x: bodyQuat.x, y: bodyQuat.y, z: bodyQuat.z, w: bodyQuat.w },
+        true
+      );
+
+      // Reset velocity to prevent any residual movement
+      character.setLinvel({ x: 0, y: 0, z: 0 }, true);
+      character.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    }
+
     // Restore character controller
     if (this.characterController) {
       if (syncController) {
@@ -157,7 +190,9 @@ class CameraAnimationSystem {
       this.characterController.inputDisabled = false;
     }
 
-    console.log("CameraAnimationSystem: Stopped");
+    console.log(
+      "CameraAnimationSystem: Stopped, physics body updated to camera position"
+    );
   }
 
   /**

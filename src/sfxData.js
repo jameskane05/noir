@@ -69,6 +69,21 @@ export const sfxSounds = {
     preload: true,
     playOn: [GAME_STATES.PHONE_BOOTH_RINGING],
     stopOn: [GAME_STATES.ANSWERED_PHONE],
+    // Audio-reactive light configuration
+    reactiveLight: {
+      enabled: true,
+      type: "PointLight", // THREE.js light type
+      color: 0xff0000, // Dramatic red light
+      position: [7, 3, 42], // Above phone booth
+      baseIntensity: 0.0, // Completely off when silent
+      reactivityMultiplier: 50.0, // Much more dramatic
+      distance: 20, // Wider reach
+      decay: 2,
+      smoothing: 0.6, // Slightly more responsive
+      frequencyRange: "full", // 'bass', 'mid', 'high', 'full'
+      maxIntensity: 250.0, // Higher peak intensity
+      noiseFloor: 0.125, // Ignore audio below 10% to prevent reverb flicker
+    },
   },
 
   "footsteps-gravel": {

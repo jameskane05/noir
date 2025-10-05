@@ -7,8 +7,8 @@
  * - captions: Array of caption objects with:
  *   - text: The text to display
  *   - duration: How long to show this caption (in seconds)
- * - requiresState: Optional object with key-value pairs that must match game state
- *   - Example: { titleSequenceComplete: true }
+ * - criteria: Optional object with key-value pairs that must match game state
+ *   - Example: { currentState: GAME_STATES.TITLE_SEQUENCE_COMPLETE }
  * - activationCondition: Optional function that receives gameState and returns true if dialog should play
  *   - Example: (state) => state.chapter === 2 && !state.hasSeenDialog
  * - once: If true, only play once (tracked automatically)
@@ -52,7 +52,7 @@ export const dialogSequences = {
         duration: 2.5,
       },
     ],
-    requiresState: { currentState: GAME_STATES.TITLE_SEQUENCE_COMPLETE },
+    criteria: { currentState: GAME_STATES.TITLE_SEQUENCE_COMPLETE },
     once: true,
     autoPlay: true,
     priority: 100,
@@ -71,7 +71,7 @@ export const dialogSequences = {
         duration: 2.5,
       },
     ],
-    requiresState: { currentState: GAME_STATES.ANSWERED_PHONE },
+    criteria: { currentState: GAME_STATES.ANSWERED_PHONE },
     once: true,
     autoPlay: true,
     priority: 100,
@@ -118,10 +118,10 @@ export function getDialogsForState(gameState, playedDialogs = new Set()) {
       continue;
     }
 
-    // Check requiresState (simple key-value matching)
-    if (dialog.requiresState) {
+    // Check criteria (simple key-value matching)
+    if (dialog.criteria) {
       let stateMatches = true;
-      for (const [key, value] of Object.entries(dialog.requiresState)) {
+      for (const [key, value] of Object.entries(dialog.criteria)) {
         if (gameState[key] !== value) {
           stateMatches = false;
           break;

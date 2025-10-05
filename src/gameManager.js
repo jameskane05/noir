@@ -4,6 +4,7 @@ import { getDialogsForState } from "./dialogData.js";
 import { getSceneObjectsForState } from "./sceneData.js";
 import { startScreen, GAME_STATES } from "./gameData.js";
 import { getDebugSpawnState, isDebugSpawnActive } from "./debugSpawner.js";
+import PhoneBooth from "./content/phonebooth.js";
 
 /**
  * GameManager - Central game state and event management
@@ -31,6 +32,7 @@ class GameManager {
     this.sfxManager = null;
     this.uiManager = null;
     this.sceneManager = null;
+    this.phoneBooth = null;
 
     // Track played dialogs for "once" functionality
     this.playedDialogs = new Set();
@@ -112,6 +114,8 @@ class GameManager {
     this.characterController = managers.characterController;
     this.cameraAnimationSystem = managers.cameraAnimationSystem;
     this.sceneManager = managers.sceneManager;
+    this.lightManager = managers.lightManager;
+    this.camera = managers.camera; // Store camera reference
     // Add other managers as needed
 
     // Set up internal event handlers
@@ -123,6 +127,17 @@ class GameManager {
       // Trigger initial animation check after loading
       this.sceneManager.updateAnimationsForState(this.state);
     }
+
+    // Initialize content-specific systems AFTER scene is loaded
+    this.phoneBooth = new PhoneBooth({
+      sceneManager: this.sceneManager,
+      lightManager: this.lightManager,
+      sfxManager: this.sfxManager,
+      physicsManager: managers.physicsManager,
+      scene: managers.scene,
+      camera: this.camera,
+    });
+    this.phoneBooth.initialize();
 
     // Attempt initial autoplay/stop based on starting state
     // Ensures startScreen sounds (e.g., city ambiance) begin immediately when possible
@@ -296,16 +311,14 @@ class GameManager {
   updateDialogsForState() {
     if (!this.dialogManager) return;
 
-    // Don't trigger new dialogs if one is already playing or pending
-    if (
-      this.dialogManager.isDialogPlaying() ||
-      this.dialogManager.hasDialogsPending()
-    )
-      return;
+    // Don't trigger new dialogs if one is already pending (let it play first)
+    // But DO allow canceling currently playing dialogs with new ones
+    if (this.dialogManager.hasDialogsPending()) return;
 
     const matchingDialogs = getDialogsForState(this.state, this.playedDialogs);
 
     // Play the first matching dialog (highest priority)
+    // DialogManager will cancel any currently playing dialog
     if (matchingDialogs.length > 0) {
       const dialog = matchingDialogs[0];
       console.log(`GameManager: Auto-playing dialog "${dialog.id}"`);
@@ -457,6 +470,11 @@ class GameManager {
    * @param {number} dt - Delta time in seconds
    */
   update(dt) {
+    // Update content-specific systems
+    if (this.phoneBooth) {
+      this.phoneBooth.update(dt);
+    }
+
     // Add any per-frame game logic here
     this.emit("game:update", dt);
   }

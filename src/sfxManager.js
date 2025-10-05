@@ -16,6 +16,7 @@ class SFXManager {
     this.masterVolume = options.masterVolume || 0.5;
     this.sounds = new Map(); // Map of id -> {howl, baseVolume}
     this.dialogManager = null; // Will be set externally
+    this.lightManager = options.lightManager || null; // LightManager for reactive lights
 
     // Set global Howler volume (we'll manage individual sounds separately)
     Howler.volume(1.0);
@@ -101,6 +102,19 @@ class SFXManager {
       }
 
       this.registerSound(sound.id, howl, sound.volume ?? 1.0);
+
+      // Request audio-reactive light creation from lightManager if configured
+      if (
+        sound.reactiveLight &&
+        sound.reactiveLight.enabled &&
+        this.lightManager
+      ) {
+        this.lightManager.createReactiveLight(
+          sound.id,
+          howl,
+          sound.reactiveLight
+        );
+      }
     });
   }
 
@@ -307,6 +321,8 @@ class SFXManager {
    */
   destroy() {
     this.stopAll();
+
+    // Clean up sounds
     for (const [id, soundData] of this.sounds) {
       if (soundData.howl && !soundData.isProxy) {
         soundData.howl.unload();

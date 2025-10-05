@@ -3,6 +3,7 @@ import * as THREE from "three";
 
 class PhysicsManager {
   constructor() {
+    this.RAPIER = RAPIER; // Store RAPIER reference for external use
     this.gravity = { x: 0.0, y: -9.81, z: 0.0 };
     this.world = new RAPIER.World(this.gravity);
     this.createFloor();

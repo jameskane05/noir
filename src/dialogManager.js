@@ -218,11 +218,24 @@ class DialogManager {
   }
 
   /**
-   * Play a dialog sequence
+   * Play a dialog sequence (cancels any currently playing dialog)
    * @param {Object} dialogData - Dialog data object with audio and captions
    * @param {Function} onComplete - Optional callback when dialog finishes
    */
   playDialog(dialogData, onComplete = null) {
+    // Cancel any currently playing dialog
+    if (this.isPlaying) {
+      console.log(
+        `DialogManager: Canceling current dialog "${this.currentDialog?.id}" for new dialog "${dialogData.id}"`
+      );
+      this.stopDialog();
+    }
+
+    // Cancel any pending delayed dialog with the same ID
+    if (this.pendingDialogs.has(dialogData.id)) {
+      this.cancelDelayedDialog(dialogData.id);
+    }
+
     // Check if this dialog has a delay
     const delay = dialogData.delay || 0;
 
@@ -244,21 +257,6 @@ class DialogManager {
    * @private
    */
   scheduleDelayedDialog(dialogData, onComplete, delay) {
-    // Don't schedule if already pending or playing
-    if (this.pendingDialogs.has(dialogData.id)) {
-      console.warn(
-        `DialogManager: Dialog "${dialogData.id}" is already scheduled`
-      );
-      return;
-    }
-
-    if (this.isPlaying && this.currentDialog?.id === dialogData.id) {
-      console.warn(
-        `DialogManager: Dialog "${dialogData.id}" is already playing`
-      );
-      return;
-    }
-
     console.log(
       `DialogManager: Scheduling dialog "${dialogData.id}" with ${delay}s delay`
     );
@@ -289,11 +287,6 @@ class DialogManager {
    * @private
    */
   _playDialogImmediate(dialogData, onComplete) {
-    if (this.isPlaying) {
-      console.warn("DialogManager: Already playing dialog");
-      return;
-    }
-
     this.currentDialog = dialogData;
     this.onCompleteCallback = onComplete;
     this.captionQueue = dialogData.captions || [];

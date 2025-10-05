@@ -44,6 +44,32 @@ class SceneManager {
     this.animationMixers = new Map(); // Map of objectId -> THREE.AnimationMixer
     this.animationActions = new Map(); // Map of animationId -> THREE.AnimationAction
     this.animationData = new Map(); // Map of animationId -> animation data config
+
+    // Event listeners
+    this.eventListeners = {};
+  }
+
+  /**
+   * Add event listener
+   * @param {string} event - Event name
+   * @param {function} callback - Callback function
+   */
+  on(event, callback) {
+    if (!this.eventListeners[event]) {
+      this.eventListeners[event] = [];
+    }
+    this.eventListeners[event].push(callback);
+  }
+
+  /**
+   * Emit an event
+   * @param {string} event - Event name
+   * @param {...any} args - Arguments to pass to callbacks
+   */
+  emit(event, ...args) {
+    if (this.eventListeners[event]) {
+      this.eventListeners[event].forEach((callback) => callback(...args));
+    }
   }
 
   /**
@@ -267,6 +293,19 @@ class SceneManager {
     const mixer = new THREE.AnimationMixer(model);
     this.animationMixers.set(objectId, mixer);
 
+    // Listen for animation finished events
+    mixer.addEventListener("finished", (e) => {
+      const action = e.action;
+      // Find which animation config this action belongs to
+      for (const [animId, storedAction] of this.animationActions) {
+        if (storedAction === action) {
+          console.log(`SceneManager: Animation "${animId}" finished`);
+          this.emit("animation:finished", animId);
+          break;
+        }
+      }
+    });
+
     animationConfigs.forEach((config) => {
       // Find the clip
       let clip;
@@ -307,6 +346,120 @@ class SceneManager {
    */
   getObject(id) {
     return this.objects.get(id) || null;
+  }
+
+  /**
+   * Find a child mesh by name within a loaded object
+   * @param {string} objectId - Parent object ID
+   * @param {string} childName - Name of child mesh to find
+   * @returns {THREE.Object3D|null}
+   */
+  findChildByName(objectId, childName) {
+    const object = this.getObject(objectId);
+    if (!object) {
+      console.warn(`SceneManager: Object "${objectId}" not found`);
+      return null;
+    }
+
+    let foundChild = null;
+    object.traverse((child) => {
+      if (child.name === childName) {
+        foundChild = child;
+      }
+    });
+
+    if (!foundChild) {
+      console.warn(
+        `SceneManager: Child "${childName}" not found in "${objectId}"`
+      );
+    }
+
+    return foundChild;
+  }
+
+  /**
+   * Reparent a child mesh from one object to another
+   * @param {string} sourceObjectId - Source object ID
+   * @param {string} childName - Name of child to reparent
+   * @param {THREE.Object3D} targetParent - New parent object
+   * @param {Object} localTransform - Optional local transform { position, rotation, scale }
+   * @returns {THREE.Object3D|null} The reparented child, or null if failed
+   */
+  reparentChild(sourceObjectId, childName, targetParent) {
+    const child = this.findChildByName(sourceObjectId, childName);
+    if (!child) {
+      return null;
+    }
+
+    // Use THREE.js attach() method to preserve world transform
+    // This automatically handles the math to maintain world position/rotation/scale
+    targetParent.attach(child);
+
+    return child;
+  }
+
+  /**
+   * Reparent a child mesh and apply a local transform
+   * (legacy method, kept for compatibility)
+   * @param {string} sourceObjectId - ID of object containing the child
+   * @param {string} childName - Name of child mesh to reparent
+   * @param {THREE.Object3D} targetParent - New parent object
+   * @param {Object} localTransform - Local transform to apply after reparenting
+   * @returns {THREE.Object3D|null} The reparented child, or null if not found
+   */
+  reparentChildWithTransform(
+    sourceObjectId,
+    childName,
+    targetParent,
+    localTransform = null
+  ) {
+    const child = this.findChildByName(sourceObjectId, childName);
+    if (!child) {
+      return null;
+    }
+
+    // Remove from current parent
+    if (child.parent) {
+      child.parent.remove(child);
+    }
+
+    // Add to new parent
+    targetParent.add(child);
+
+    // Apply local transform if provided
+    if (localTransform) {
+      if (localTransform.position) {
+        child.position.set(
+          localTransform.position[0],
+          localTransform.position[1],
+          localTransform.position[2]
+        );
+      }
+      if (localTransform.rotation) {
+        child.rotation.set(
+          localTransform.rotation[0],
+          localTransform.rotation[1],
+          localTransform.rotation[2]
+        );
+      }
+      if (localTransform.scale) {
+        if (Array.isArray(localTransform.scale)) {
+          child.scale.set(
+            localTransform.scale[0],
+            localTransform.scale[1],
+            localTransform.scale[2]
+          );
+        } else {
+          child.scale.setScalar(localTransform.scale);
+        }
+      }
+    }
+
+    console.log(
+      `SceneManager: Reparented "${childName}" from "${sourceObjectId}" to new parent`
+    );
+
+    return child;
   }
 
   /**
