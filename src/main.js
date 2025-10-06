@@ -77,13 +77,6 @@ lightManager.createDirectionalLight({
   castShadow: true,
 });
 
-lightManager.createDirectionalLight({
-  id: "fill",
-  color: 0x4466ff,
-  intensity: 0.3,
-  position: [-10, 10, -10],
-});
-
 console.log("Scene lighting initialized");
 
 // Initialize the physics manager

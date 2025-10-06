@@ -59,6 +59,18 @@ export const dialogSequences = {
     delay: 1.0, // Wait 1 second after title sequence completes
   },
 
+  // Dialog that plays when phone starts ringing
+  okayICanTakeAHint: {
+    id: "okay-i-can-take-a-hint",
+    audio: "./audio/dialog/01-okay-i-can-take-a-hint.mp3",
+    captions: [{ text: "Okay, I can take a hint.", duration: 2.0 }],
+    criteria: { currentState: GAME_STATES.PHONE_BOOTH_RINGING },
+    once: true,
+    autoPlay: true,
+    priority: 100,
+    delay: 5, // Wait 2 seconds after phone starts ringing
+  },
+
   // Example intro dialog
   paintings: {
     id: "didnt-paint-those-paintings",

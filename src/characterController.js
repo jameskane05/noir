@@ -32,7 +32,19 @@ class CharacterController {
     this.headbobTime = 0;
     this.headbobIntensity = 0;
     this.idleHeadbobTime = 0;
-    this.headbobEnabled = false;
+    this.headbobEnabled = true;
+
+    // Idle glance system
+    this.glanceEnabled = false; // Disabled for now - can re-enable later
+    this.idleTime = 0; // Time spent idle
+    this.glanceState = null; // null, 'glancing', 'returning'
+    this.glanceProgress = 0; // 0 to 1
+    this.glanceDuration = 1.2; // Duration of one glance animation (slower)
+    this.glanceTimer = 3.0; // Time until next glance (starts at 3 seconds)
+    this.glanceStartYaw = 0;
+    this.glanceTargetYaw = 0;
+    this.glanceStartPitch = 0;
+    this.glanceTargetPitch = 0;
 
     // Audio
     this.audioListener = new THREE.AudioListener();
@@ -160,6 +172,11 @@ class CharacterController {
     // Clear all key states to prevent stuck keys
     this.keys = { w: false, a: false, s: false, d: false, shift: false };
 
+    // Reset glance state
+    this.glanceState = null;
+    this.idleTime = 0;
+    this.glanceTimer = 3.0;
+
     if (updateYawPitch) {
       // Update yaw and pitch to match current camera orientation
       const euler = new THREE.Euler().setFromQuaternion(
@@ -225,7 +242,7 @@ class CharacterController {
     // Gentle breathing/idle animation - half strength of walking
     const idleFrequency = 0.8; // Slow breathing rate
     const idleVerticalAmp = 0.015; // Half of walk vertical (0.04)
-    const idleHorizontalAmp = 0.015; // Half of walk horizontal (0.03)
+    const idleHorizontalAmp = 0.01; // Half of walk horizontal (0.03)
 
     const verticalBob =
       Math.sin(this.idleHeadbobTime * idleFrequency * Math.PI * 2) *
@@ -238,6 +255,110 @@ class CharacterController {
       vertical: verticalBob,
       horizontal: horizontalBob,
     };
+  }
+
+  /**
+   * Start a glance animation (look left/right and slightly up/down)
+   */
+  startGlance() {
+    this.glanceState = "glancing";
+    this.glanceProgress = 0;
+    this.glanceStartYaw = this.yaw;
+    this.glanceStartPitch = this.pitch;
+
+    // Random horizontal direction and angle
+    const horizontalDir = Math.random() > 0.5 ? 1 : -1;
+    const glanceAngle = (Math.random() * 0.3 + 0.2) * horizontalDir; // 0.2 to 0.5 radians (~11 to 29 degrees)
+    this.glanceTargetYaw = this.yaw + glanceAngle;
+
+    // Random vertical angle (slight up or down)
+    const verticalAngle = Math.random() * 0.15 - 0.075; // -0.075 to 0.075 radians (~-4 to 4 degrees)
+    this.glanceTargetPitch = this.pitch + verticalAngle;
+
+    // Clamp pitch to valid range
+    this.glanceTargetPitch = Math.max(
+      -Math.PI / 2 + 0.01,
+      Math.min(Math.PI / 2 - 0.01, this.glanceTargetPitch)
+    );
+  }
+
+  /**
+   * Update idle glance system
+   * @param {number} dt - Delta time
+   * @param {boolean} isMoving - Whether the player is moving
+   */
+  updateIdleGlance(dt, isMoving) {
+    // Skip if glance system is disabled
+    if (!this.glanceEnabled) return;
+
+    // Reset idle time if moving or input is disabled
+    if (isMoving || this.inputDisabled) {
+      this.idleTime = 0;
+      this.glanceState = null;
+      this.glanceTimer = 3.0; // Reset to initial 3 seconds
+      return;
+    }
+
+    // Accumulate idle time
+    this.idleTime += dt;
+
+    // Update glance animation if glancing
+    if (this.glanceState === "glancing") {
+      this.glanceProgress += dt / this.glanceDuration;
+
+      if (this.glanceProgress >= 1.0) {
+        // Glance complete - start return to start
+        this.glanceProgress = 0;
+        this.glanceState = "returning";
+      } else {
+        // Animate glance with ease-in-out
+        const t = this.glanceProgress;
+        const easedT = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+
+        // Interpolate yaw and pitch
+        this.targetYaw =
+          this.glanceStartYaw +
+          (this.glanceTargetYaw - this.glanceStartYaw) * easedT;
+        this.targetPitch =
+          this.glanceStartPitch +
+          (this.glanceTargetPitch - this.glanceStartPitch) * easedT;
+      }
+    } else if (this.glanceState === "returning") {
+      // Return to start position at the same speed
+      this.glanceProgress += dt / this.glanceDuration;
+
+      if (this.glanceProgress >= 1.0) {
+        // Return complete - reset state
+        this.glanceProgress = 1.0;
+        this.glanceState = null;
+        this.glanceTimer = 4.0 + Math.random() * 2.0; // Next glance in 4-6 seconds
+
+        // Ensure we're back at start
+        this.targetYaw = this.glanceStartYaw;
+        this.targetPitch = this.glanceStartPitch;
+      } else {
+        // Animate return with ease-in-out
+        const t = this.glanceProgress;
+        const easedT = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+
+        // Interpolate back to start
+        this.targetYaw =
+          this.glanceTargetYaw +
+          (this.glanceStartYaw - this.glanceTargetYaw) * easedT;
+        this.targetPitch =
+          this.glanceTargetPitch +
+          (this.glanceStartPitch - this.glanceTargetPitch) * easedT;
+      }
+    } else {
+      // Count down to next glance
+      if (this.idleTime >= 3.0) {
+        this.glanceTimer -= dt;
+
+        if (this.glanceTimer <= 0) {
+          this.startGlance();
+        }
+      }
+    }
   }
 
   calculateHeadbob(isSprinting) {
@@ -280,6 +401,11 @@ class CharacterController {
 
         // Clear all key states to prevent stuck keys
         this.keys = { w: false, a: false, s: false, d: false, shift: false };
+
+        // Reset glance state
+        this.glanceState = null;
+        this.idleTime = 0;
+        this.glanceTimer = 3.0;
 
         // Call completion callback if provided
         if (this.lookAtOnComplete) {
@@ -343,6 +469,9 @@ class CharacterController {
       const linvel = this.character.linvel();
       this.character.setLinvel({ x: 0, y: linvel.y, z: 0 }, true);
     }
+
+    // Update idle glance system (before headbob so it can affect targetYaw)
+    this.updateIdleGlance(dt, isMoving);
 
     // Update headbob state
     const targetIntensity = this.headbobEnabled ? (isMoving ? 1.0 : 0.0) : 0.0;

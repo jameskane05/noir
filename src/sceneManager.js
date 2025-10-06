@@ -223,11 +223,24 @@ class SceneManager {
           const model = gltf.scene;
 
           // Traverse all children and ensure materials are visible
+          // Also remove any lights from the GLTF (we manage lights separately)
+          const lightsToRemove = [];
           model.traverse((child) => {
             if (child.isMesh) {
               if (child.material) {
                 child.material.needsUpdate = true;
               }
+            }
+            // Collect lights to remove (can't remove during traversal)
+            if (child.isLight) {
+              lightsToRemove.push(child);
+            }
+          });
+
+          // Remove collected lights
+          lightsToRemove.forEach((light) => {
+            if (light.parent) {
+              light.parent.remove(light);
             }
           });
 

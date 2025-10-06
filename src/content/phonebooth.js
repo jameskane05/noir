@@ -37,13 +37,13 @@ class PhoneBooth {
       receiverLerpEase: (t) => 1 - Math.pow(1 - t, 3), // Cubic ease-out
 
       // Cord configuration
-      cordSegments: 32, // Number of links in the chain
-      cordSegmentLength: 0.08, // Length of each segment (longer for slack)
+      cordSegments: 12, // Number of links in the chain
+      cordSegmentLength: 0.16, // Length of each segment (longer for slack)
       cordSegmentRadius: 0.002, // Radius of each segment (very slender)
-      cordMass: 0.01, // Mass of each segment (lighter for natural droop)
+      cordMass: 10, // Mass of each segment (lighter for natural droop)
       cordDamping: 1.5, // Linear damping
       cordAngularDamping: 1.5, // Angular damping
-      cordDroopAmount: 5, // How much the cord droops in the middle (0 = straight, 1+ = more droop)
+      cordDroopAmount: 2, // How much the cord droops in the middle (0 = straight, 1+ = more droop)
     };
   }
 
@@ -284,14 +284,15 @@ class PhoneBooth {
 
     // Use TubeGeometry for a thicker, 3D cord
     const material = new THREE.MeshStandardMaterial({
-      color: 0x1a1a1a,
+      color: 0x808080, // Grey color
       metalness: 0.3,
       roughness: 0.8,
+      wireframe: false, // Ensure solid mesh, not wireframe
     });
 
     // We'll update this to use a tube in the update method
-    // For now, create a basic line that we'll replace
-    this.cordLineMesh = new THREE.Line(geometry, material);
+    // For now, create a basic mesh that we'll replace with tube geometry
+    this.cordLineMesh = new THREE.Mesh(geometry, material);
     this.cordLineMesh.renderOrder = 1; // Render after most objects
     this.scene.add(this.cordLineMesh);
   }

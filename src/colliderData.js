@@ -45,29 +45,29 @@
 import { GAME_STATES } from "./gameData.js";
 
 export const colliders = [
-  {
-    id: "trigger-camera-animation-test",
-    type: "box",
-    position: { x: 2, y: 0, z: 20 }, // Just behind the phonebooth-ring trigger
-    rotation: { x: 0, y: 120, z: 0 },
-    dimensions: { x: 6, y: 1.5, z: 1.5 },
-    onEnter: [
-      {
-        type: "camera-animation",
-        data: {
-          animation: "/json/json-test.json",
-        },
-      },
-    ],
-    onExit: [],
-    once: true,
-    enabled: true,
-  },
+  // {
+  //   id: "trigger-camera-animation-test",
+  //   type: "box",
+  //   position: { x: 2, y: 0, z: 20 }, // Just behind the phonebooth-ring trigger
+  //   rotation: { x: 0, y: 120, z: 0 },
+  //   dimensions: { x: 6, y: 1.5, z: 1.5 },
+  //   onEnter: [
+  //     {
+  //       type: "camera-animation",
+  //       data: {
+  //         animation: "/json/json-test.json",
+  //       },
+  //     },
+  //   ],
+  //   onExit: [],
+  //   once: true,
+  //   enabled: true,
+  // },
 
   {
     id: "trigger-phonebooth-ring",
     type: "box",
-    position: { x: 2, y: 0, z: 25 }, // 5m away from phonebooth (phonebooth at z:10)
+    position: { x: 8, y: 0, z: 20 }, // 5m away from phonebooth (phonebooth at z:10)
     rotation: { x: 0, y: 120, z: 0 },
     dimensions: { x: 6, y: 1.5, z: 1.5 }, // 3x3x3 box
     onEnter: [
