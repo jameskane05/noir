@@ -1,0 +1,405 @@
+import * as THREE from "three";
+import { videos, getVideosForState } from "./videoData.js";
+
+/**
+ * VideoManager - Manages video playback with state-based control
+ *
+ * Features:
+ * - State-based video playback
+ * - WebM alpha channel support
+ * - Multiple video instances
+ * - Billboard mode to face camera
+ */
+class VideoManager {
+  constructor(options = {}) {
+    this.scene = options.scene;
+    this.gameManager = options.gameManager;
+    this.camera = options.camera;
+
+    // Track active video players
+    this.videoPlayers = new Map(); // id -> VideoPlayer instance
+    this.playedOnce = new Set(); // Track videos that have played once
+
+    // Listen for game state changes
+    if (this.gameManager) {
+      this.gameManager.on("state:changed", (newState, oldState) => {
+        this.handleStateChange(newState, oldState);
+      });
+    }
+  }
+
+  /**
+   * Handle game state changes
+   */
+  handleStateChange(newState, oldState) {
+    const matchingVideos = getVideosForState(newState);
+
+    matchingVideos.forEach((videoConfig) => {
+      // Skip if video should only play once and already played
+      if (videoConfig.once && this.playedOnce.has(videoConfig.id)) {
+        return;
+      }
+
+      // Auto-play video if configured
+      if (videoConfig.autoPlay) {
+        this.playVideo(videoConfig.id);
+      }
+    });
+  }
+
+  /**
+   * Play a video by ID
+   * @param {string} videoId - Video ID from videoData.js
+   */
+  playVideo(videoId) {
+    const videoConfig = videos[videoId];
+    if (!videoConfig) {
+      console.warn(`VideoManager: Video not found: ${videoId}`);
+      return;
+    }
+
+    // Get or create video player
+    let player = this.videoPlayers.get(videoId);
+
+    if (!player) {
+      player = new VideoPlayer({
+        scene: this.scene,
+        gameManager: this.gameManager,
+        camera: this.camera,
+        videoPath: videoConfig.videoPath,
+        position: videoConfig.position,
+        rotation: videoConfig.rotation,
+        scale: videoConfig.scale,
+        loop: videoConfig.loop,
+        billboard: videoConfig.billboard,
+      });
+
+      player.initialize();
+      this.videoPlayers.set(videoId, player);
+
+      // Handle video end
+      player.video.addEventListener("ended", () => {
+        if (videoConfig.once) {
+          this.playedOnce.add(videoId);
+        }
+
+        if (videoConfig.onComplete) {
+          videoConfig.onComplete(this.gameManager);
+        }
+      });
+    }
+
+    player.play();
+  }
+
+  /**
+   * Stop a video by ID
+   * @param {string} videoId - Video ID
+   */
+  stopVideo(videoId) {
+    const player = this.videoPlayers.get(videoId);
+    if (player) {
+      player.stop();
+    }
+  }
+
+  /**
+   * Stop all videos
+   */
+  stopAllVideos() {
+    this.videoPlayers.forEach((player) => player.stop());
+  }
+
+  /**
+   * Update all active videos (call in animation loop)
+   * @param {number} dt - Delta time in seconds
+   */
+  update(dt) {
+    this.videoPlayers.forEach((player) => player.update(dt));
+  }
+
+  /**
+   * Clean up all videos
+   */
+  destroy() {
+    this.videoPlayers.forEach((player) => player.destroy());
+    this.videoPlayers.clear();
+    this.playedOnce.clear();
+  }
+}
+
+/**
+ * VideoPlayer - Individual video instance
+ * (Internal class used by VideoManager)
+ */
+class VideoPlayer {
+  constructor(options = {}) {
+    this.scene = options.scene;
+    this.gameManager = options.gameManager;
+    this.camera = options.camera;
+
+    // Video configuration
+    this.config = {
+      videoPath: options.videoPath,
+      position: options.position || [0, 0, 0],
+      rotation: options.rotation || [0, 0, 0],
+      scale: options.scale || [1, 1, 1],
+      loop: options.loop !== undefined ? options.loop : false,
+      billboard: options.billboard !== undefined ? options.billboard : false,
+    };
+
+    // Video elements
+    this.video = null;
+    this.canvas = null;
+    this.canvasContext = null;
+    this.videoTexture = null;
+    this.videoMesh = null;
+    this.videoMaterial = null;
+    this.isPlaying = false;
+    this.isInitialized = false;
+    this.canvasReady = false;
+  }
+
+  /**
+   * Initialize the video player
+   */
+  initialize() {
+    if (this.isInitialized) return;
+
+    // Create video element
+    this.video = document.createElement("video");
+    this.video.src = this.config.videoPath;
+    this.video.crossOrigin = "anonymous";
+    this.video.loop = this.config.loop;
+    this.video.muted = true; // Mute for autoplay to work (browser restriction)
+    this.video.playsInline = true;
+    this.video.preload = "auto";
+
+    // Create canvas for WebM alpha extraction
+    this.canvas = document.createElement("canvas");
+    this.canvas.width = 1920;
+    this.canvas.height = 1080;
+    this.canvasContext = this.canvas.getContext("2d", {
+      alpha: true,
+      willReadFrequently: false,
+    });
+
+    // Don't create texture yet - wait for video to load
+    this.videoTexture = null;
+
+    // Create material with transparent support for WebM alpha
+    const material = new THREE.MeshBasicMaterial({
+      map: this.videoTexture,
+      transparent: true,
+      side: THREE.DoubleSide,
+      toneMapped: false,
+      depthTest: true,
+      depthWrite: false,
+    });
+
+    // Create plane geometry
+    const geometry = new THREE.PlaneGeometry(3, 3);
+
+    // Create mesh
+    this.videoMesh = new THREE.Mesh(geometry, material);
+    this.videoMesh.position.set(...this.config.position);
+    this.videoMesh.rotation.set(...this.config.rotation);
+    this.videoMesh.scale.set(...this.config.scale);
+    this.videoMesh.renderOrder = 999;
+
+    // Store material reference
+    this.videoMaterial = material;
+    this.videoMesh.name = "video-player";
+
+    // Add to scene
+    if (this.scene) {
+      this.scene.add(this.videoMesh);
+    }
+
+    // Video event listeners
+    this.video.addEventListener("loadeddata", () => {
+      // Resize canvas to match video dimensions
+      if (this.video.videoWidth > 0 && this.video.videoHeight > 0) {
+        this.canvas.width = this.video.videoWidth;
+        this.canvas.height = this.video.videoHeight;
+
+        // Create texture now that canvas has proper dimensions
+        if (!this.videoTexture) {
+          this.videoTexture = new THREE.CanvasTexture(this.canvas);
+          this.videoTexture.minFilter = THREE.LinearFilter;
+          this.videoTexture.magFilter = THREE.LinearFilter;
+          this.videoTexture.colorSpace = THREE.SRGBColorSpace;
+
+          // Update material with texture
+          if (this.videoMesh && this.videoMesh.material) {
+            this.videoMesh.material.map = this.videoTexture;
+            this.videoMesh.material.needsUpdate = true;
+          }
+        }
+
+        this.canvasReady = true;
+      }
+    });
+
+    this.video.addEventListener("error", (e) => {
+      console.error("VideoPlayer: Video error:", e);
+      console.error("VideoPlayer: Video error code:", this.video.error?.code);
+      console.error(
+        "VideoPlayer: Video error message:",
+        this.video.error?.message
+      );
+    });
+
+    this.video.addEventListener("ended", () => {
+      this.isPlaying = false;
+    });
+
+    this.video.addEventListener("play", () => {
+      this.isPlaying = true;
+
+      // Force texture update
+      if (this.videoTexture) {
+        this.videoTexture.needsUpdate = true;
+      }
+
+      // Force material update
+      if (this.videoMaterial) {
+        this.videoMaterial.needsUpdate = true;
+      }
+    });
+
+    this.video.addEventListener("pause", () => {
+      this.isPlaying = false;
+    });
+
+    this.isInitialized = true;
+  }
+
+  /**
+   * Play the video
+   */
+  async play() {
+    if (!this.video) return;
+
+    try {
+      this.video.currentTime = 0;
+      await this.video.play();
+    } catch (error) {
+      console.error("VideoPlayer: Failed to play video", error);
+    }
+  }
+
+  /**
+   * Pause the video
+   */
+  pause() {
+    if (this.video) {
+      this.video.pause();
+    }
+  }
+
+  /**
+   * Stop the video
+   */
+  stop() {
+    if (this.video) {
+      this.video.pause();
+      this.video.currentTime = 0;
+      this.isPlaying = false;
+    }
+  }
+
+  /**
+   * Set video position
+   */
+  setPosition(x, y, z) {
+    if (this.videoMesh) {
+      this.videoMesh.position.set(x, y, z);
+    }
+  }
+
+  /**
+   * Set video rotation
+   */
+  setRotation(x, y, z) {
+    if (this.videoMesh) {
+      this.videoMesh.rotation.set(x, y, z);
+    }
+  }
+
+  /**
+   * Set video scale
+   */
+  setScale(x, y, z) {
+    if (this.videoMesh) {
+      this.videoMesh.scale.set(x, y, z);
+    }
+  }
+
+  /**
+   * Show/hide video mesh
+   */
+  setVisible(visible) {
+    if (this.videoMesh) {
+      this.videoMesh.visible = visible;
+    }
+  }
+
+  /**
+   * Update method - call in animation loop
+   */
+  update(dt) {
+    // Draw video to canvas to extract alpha channel (for WebM alpha support)
+    if (
+      this.canvasReady &&
+      this.isPlaying &&
+      this.video &&
+      this.video.readyState >= this.video.HAVE_CURRENT_DATA
+    ) {
+      this.canvasContext.clearRect(0, 0, this.canvas.width, this.canvas.height);
+      this.canvasContext.drawImage(this.video, 0, 0);
+      this.videoTexture.needsUpdate = true;
+    }
+
+    // Billboard to camera if enabled (Y-axis only)
+    if (this.config.billboard && this.videoMesh && this.camera) {
+      // Calculate angle to camera in XZ plane only
+      const dx = this.camera.position.x - this.videoMesh.position.x;
+      const dz = this.camera.position.z - this.videoMesh.position.z;
+      const angle = Math.atan2(dx, dz);
+
+      // Apply only Y rotation, preserve original X and Z rotations
+      this.videoMesh.rotation.y = angle;
+    }
+  }
+
+  /**
+   * Clean up
+   */
+  destroy() {
+    this.stop();
+
+    if (this.videoMesh) {
+      if (this.videoMesh.parent) {
+        this.videoMesh.parent.remove(this.videoMesh);
+      }
+      if (this.videoMesh.geometry) {
+        this.videoMesh.geometry.dispose();
+      }
+      if (this.videoMesh.material) {
+        this.videoMesh.material.dispose();
+      }
+    }
+
+    if (this.videoTexture) {
+      this.videoTexture.dispose();
+    }
+
+    if (this.video) {
+      this.video.src = "";
+      this.video.load();
+    }
+  }
+}
+
+export default VideoManager;

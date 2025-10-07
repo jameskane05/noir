@@ -22,6 +22,7 @@ import { TitleSequence } from "./titleSequence.js";
 import { StartScreen } from "./startScreen.js";
 import { GAME_STATES } from "./gameData.js";
 import CameraAnimationSystem from "./cameraAnimationSystem.js";
+import { IdleHelper } from "./ui/idleHelper.js";
 import "./styles/optionsMenu.css";
 
 const scene = new THREE.Scene();
@@ -186,6 +187,7 @@ if (!gameManager.shouldSkipIntro()) {
 // Initialize dialog choice UI
 const dialogChoiceUI = new DialogChoiceUI({
   gameManager: gameManager,
+  sfxManager: sfxManager,
 });
 
 // Initialize dialog manager with HTML captions
@@ -240,6 +242,14 @@ const colliderManager = new ColliderManager(
 
 // Make collider manager globally accessible for debugging
 window.colliderManager = colliderManager;
+
+// Initialize idle helper (shows WASD controls when player is idle)
+const idleHelper = new IdleHelper(
+  dialogManager,
+  cameraAnimationSystem,
+  dialogChoiceUI,
+  gameManager
+);
 
 // Global escape key handler for options menu (only works when game is active, not during intro)
 // Track ESC key press time to distinguish between quick press (menu) and held (exit fullscreen)
@@ -301,9 +311,9 @@ renderer.setAnimationLoop(function animate(time) {
       colliderManager.update(character);
     }
 
-    // Update video player (billboard to camera)
-    if (gameManager.videoPlayer) {
-      gameManager.videoPlayer.update(dt);
+    // Update video manager (billboard to camera, frame updates)
+    if (gameManager.videoManager) {
+      gameManager.videoManager.update(dt);
     }
 
     // Update Howler listener position for spatial audio

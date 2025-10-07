@@ -135,6 +135,52 @@ export const sfxSounds = {
     preload: true,
     playOn: [GAME_STATES.DRIVE_BY],
   },
+
+  // Typewriter sounds for dialog choices
+  "typewriter-keystroke-00": {
+    id: "typewriter-keystroke-00",
+    src: ["/audio/sfx/typewriter-keystroke-00.mp3"],
+    volume: 0.6,
+    loop: false,
+    spatial: false,
+    preload: true,
+  },
+
+  "typewriter-keystroke-01": {
+    id: "typewriter-keystroke-01",
+    src: ["/audio/sfx/typewriter-keystroke-01.mp3"],
+    volume: 0.6,
+    loop: false,
+    spatial: false,
+    preload: true,
+  },
+
+  "typewriter-keystroke-02": {
+    id: "typewriter-keystroke-02",
+    src: ["/audio/sfx/typewriter-keystroke-02.mp3"],
+    volume: 0.6,
+    loop: false,
+    spatial: false,
+    preload: true,
+  },
+
+  "typewriter-keystroke-03": {
+    id: "typewriter-keystroke-03",
+    src: ["/audio/sfx/typewriter-keystroke-03.mp3"],
+    volume: 0.6,
+    loop: false,
+    spatial: false,
+    preload: true,
+  },
+
+  "typewriter-return": {
+    id: "typewriter-return",
+    src: ["/audio/sfx/typewriter-return.mp3"],
+    volume: 0.6,
+    loop: false,
+    spatial: false,
+    preload: true,
+  },
 };
 
 /**
@@ -161,6 +207,13 @@ export const sfxTriggers = {
 
   // Game state triggers
   engineAndGun: "engine-and-gun",
+
+  // Typewriter sounds for dialog choices
+  typewriterKeystroke00: "typewriter-keystroke-00",
+  typewriterKeystroke01: "typewriter-keystroke-01",
+  typewriterKeystroke02: "typewriter-keystroke-02",
+  typewriterKeystroke03: "typewriter-keystroke-03",
+  typewriterReturn: "typewriter-return",
 
   // (add more as needed)
   // doorOpen: "door-open",

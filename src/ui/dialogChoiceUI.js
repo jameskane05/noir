@@ -12,11 +12,13 @@ class DialogChoiceUI {
   constructor(options = {}) {
     this.gameManager = options.gameManager || null;
     this.dialogManager = options.dialogManager || null;
+    this.sfxManager = options.sfxManager || null;
     this.container = null;
     this.currentChoices = null;
     this.isVisible = false;
     this.selectedIndex = 0;
     this.choiceButtons = [];
+    this.keystrokeIndex = 0; // Track which keystroke sound to play next (0-3)
 
     this.createUI();
     this.applyStyles();
@@ -208,6 +210,14 @@ class DialogChoiceUI {
     // Add selected class to new button
     this.choiceButtons[this.selectedIndex].classList.add("selected");
 
+    // Play typewriter keystroke sound
+    if (this.sfxManager) {
+      const soundId = `typewriter-keystroke-0${this.keystrokeIndex}`;
+      this.sfxManager.play(soundId);
+      // Cycle through 0-3
+      this.keystrokeIndex = (this.keystrokeIndex + 1) % 4;
+    }
+
     console.log(`DialogChoiceUI: Selected option ${this.selectedIndex}`);
   }
 
@@ -216,6 +226,11 @@ class DialogChoiceUI {
    */
   confirmSelection() {
     if (!this.currentChoices || this.choiceButtons.length === 0) return;
+
+    // Play typewriter return sound
+    if (this.sfxManager) {
+      this.sfxManager.play("typewriter-return");
+    }
 
     const selectedChoice = this.currentChoices.choices[this.selectedIndex];
     this.selectChoice(selectedChoice, this.currentChoices);
@@ -237,6 +252,7 @@ class DialogChoiceUI {
     this.isVisible = true;
     this.selectedIndex = 0;
     this.choiceButtons = [];
+    this.keystrokeIndex = 0; // Reset keystroke cycle when showing new choices
 
     // Set prompt if provided
     if (choiceData.prompt) {
@@ -261,6 +277,10 @@ class DialogChoiceUI {
       button.dataset.choiceIndex = index;
 
       button.addEventListener("click", () => {
+        // Play typewriter return sound on click
+        if (this.sfxManager) {
+          this.sfxManager.play("typewriter-return");
+        }
         this.selectedIndex = index;
         this.selectChoice(choice, choiceData);
       });
@@ -270,6 +290,14 @@ class DialogChoiceUI {
         this.choiceButtons[this.selectedIndex].classList.remove("selected");
         this.selectedIndex = index;
         button.classList.add("selected");
+
+        // Play typewriter keystroke sound on hover
+        if (this.sfxManager) {
+          const soundId = `typewriter-keystroke-0${this.keystrokeIndex}`;
+          this.sfxManager.play(soundId);
+          // Cycle through 0-3
+          this.keystrokeIndex = (this.keystrokeIndex + 1) % 4;
+        }
       });
 
       this.choicesElement.appendChild(button);

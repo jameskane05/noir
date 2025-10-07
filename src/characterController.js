@@ -51,6 +51,16 @@ class CharacterController {
     this.dofTransitionDuration = 2; // How long the DoF transition takes in seconds
     this.dofTransitionProgress = 0; // Current progress of DoF transition (0 to 1)
 
+    // FOV Zoom system (synced with DoF)
+    this.baseFov = null; // Will be set from camera's initial FOV
+    this.currentFov = null;
+    this.targetFov = null;
+    this.startFov = null; // Captured at start of each transition
+    this.zoomTransitioning = false;
+    this.zoomTransitionProgress = 0; // Separate progress for zoom
+    this.zoomFactor = 1.5; // 15% zoom
+    this.lookAtZoomActive = false;
+
     // Headbob state
     this.headbobTime = 0;
     this.headbobIntensity = 0;
@@ -88,6 +98,11 @@ class CharacterController {
     this.cameraHeight = 1.6;
     this.mouseSensitivity = 0.0025;
     this.cameraSmoothingFactor = 0.15;
+
+    // Initialize FOV from camera
+    this.baseFov = this.camera.fov;
+    this.currentFov = this.baseFov;
+    this.targetFov = this.baseFov;
 
     this.setupInputListeners();
     this.loadFootstepAudio();
@@ -215,7 +230,17 @@ class CharacterController {
       );
     }
 
-    console.log(`CharacterController: Looking at target over ${duration}s`);
+    // Set up zoom transition (synced with DoF)
+    this.startFov = this.currentFov; // Capture current FOV as start
+    this.targetFov = this.baseFov / this.zoomFactor; // Zoom in by reducing FOV
+    this.lookAtZoomActive = true;
+    this.zoomTransitionProgress = 0; // Reset zoom progress
+
+    console.log(
+      `CharacterController: Looking at target over ${duration}s (zoom: ${this.baseFov.toFixed(
+        1
+      )}° → ${this.targetFov.toFixed(1)}°)`
+    );
   }
 
   /**
@@ -256,6 +281,16 @@ class CharacterController {
       this.dofTransitioning = true;
       this.dofTransitionProgress = 0; // Reset for return transition
       console.log(`CharacterController: Returning DoF to base (cancelled)`);
+    }
+
+    // Return zoom to base if it was active
+    if (this.lookAtZoomActive) {
+      this.startFov = this.currentFov; // Capture current FOV as start
+      this.targetFov = this.baseFov;
+      this.lookAtZoomActive = false;
+      this.zoomTransitioning = true;
+      this.zoomTransitionProgress = 0; // Reset for return transition
+      console.log(`CharacterController: Returning zoom to base (cancelled)`);
     }
 
     console.log("CharacterController: Look-at cancelled, control restored");
@@ -334,8 +369,16 @@ class CharacterController {
         this.lookAtDofActive = false;
         this.dofTransitioning = true;
         this.dofTransitionProgress = 0; // Reset for return transition
+
+        // Also return zoom to base
+        this.startFov = this.currentFov; // Capture current FOV as start
+        this.targetFov = this.baseFov;
+        this.lookAtZoomActive = false;
+        this.zoomTransitioning = true;
+        this.zoomTransitionProgress = 0; // Reset for return transition
+
         console.log(
-          `CharacterController: Hold complete, returning DoF to base - Aperture: ${this.baseApertureSize.toFixed(
+          `CharacterController: Hold complete, returning DoF and zoom to base - Aperture: ${this.baseApertureSize.toFixed(
             3
           )}`
         );
@@ -379,6 +422,37 @@ class CharacterController {
       this.currentApertureSize = this.targetApertureSize;
       this.dofTransitioning = false;
       this.dofTransitionProgress = 0;
+    }
+  }
+
+  /**
+   * Update FOV zoom (synced with DoF transitions)
+   * @param {number} dt - Delta time
+   */
+  updateZoom(dt) {
+    if (!this.zoomTransitioning) return;
+
+    // Update zoom transition progress (using same duration as DoF)
+    this.zoomTransitionProgress += dt / this.dofTransitionDuration;
+    const t = Math.min(1.0, this.zoomTransitionProgress);
+
+    // Use ease-out for smooth transition (matching DoF)
+    const eased = 1 - Math.pow(1 - t, 3);
+
+    // Interpolate FOV from captured start to target
+    this.currentFov = this.startFov + (this.targetFov - this.startFov) * eased;
+
+    // Update camera FOV
+    this.camera.fov = this.currentFov;
+    this.camera.updateProjectionMatrix();
+
+    // Check if transition is complete
+    if (t >= 1.0) {
+      this.currentFov = this.targetFov;
+      this.camera.fov = this.currentFov;
+      this.camera.updateProjectionMatrix();
+      this.zoomTransitioning = false;
+      this.zoomTransitionProgress = 0;
     }
   }
 
@@ -537,19 +611,24 @@ class CharacterController {
     // Update depth of field (always active during transitions)
     this.updateDepthOfField(dt);
 
+    // Update zoom (synced with DoF, always active during transitions)
+    this.updateZoom(dt);
+
     // Handle camera look-at sequence
     if (this.isLookingAt) {
       this.lookAtProgress += dt / this.lookAtDuration;
 
-      // Start DoF transition when we reach the threshold
+      // Start DoF and zoom transitions when we reach the threshold
       if (
         this.lookAtDofActive &&
         !this.dofTransitioning &&
         this.lookAtProgress >= this.dofTransitionStartProgress
       ) {
         this.dofTransitioning = true;
+        this.startFov = this.currentFov; // Capture current FOV as start for zoom
+        this.zoomTransitioning = true;
         console.log(
-          `CharacterController: Starting DoF transition at ${(
+          `CharacterController: Starting DoF and zoom transitions at ${(
             this.lookAtProgress * 100
           ).toFixed(0)}%`
         );

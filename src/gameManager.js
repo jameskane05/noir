@@ -2,10 +2,11 @@ import * as THREE from "three";
 import { getMusicForState } from "./musicData.js";
 import { getDialogsForState } from "./dialogData.js";
 import { getSceneObjectsForState } from "./sceneData.js";
+import { getVideosForState } from "./videoData.js";
 import { startScreen, GAME_STATES } from "./gameData.js";
 import { getDebugSpawnState, isDebugSpawnActive } from "./debugSpawner.js";
 import PhoneBooth from "./content/phonebooth.js";
-import VideoPlayer from "./content/videoPlayer.js";
+import VideoManager from "./videoManager.js";
 
 /**
  * GameManager - Central game state and event management
@@ -140,22 +141,12 @@ class GameManager {
     });
     this.phoneBooth.initialize(this);
 
-    // Initialize video player for character performance
-    this.videoPlayer = new VideoPlayer({
-      sceneManager: this.sceneManager,
+    // Initialize video manager with state-based playback
+    this.videoManager = new VideoManager({
       scene: managers.scene,
       gameManager: this,
       camera: this.camera,
-      videoPath: "/video/1007.webm",
-      position: [10, 1, 35], // Position in 3D space
-      rotation: [0, -Math.PI / 2, 0], // Face toward player
-      scale: [3, 3, 3], // Size of video plane
-      playOnStates: [GAME_STATES.TITLE_SEQUENCE_COMPLETE],
-      loop: true,
-      autoplay: true,
-      billboard: true,
     });
-    this.videoPlayer.initialize();
 
     // Attempt initial autoplay/stop based on starting state
     // Ensures startScreen sounds (e.g., city ambiance) begin immediately when possible
@@ -164,9 +155,10 @@ class GameManager {
       this.sfxManager.autoplayForState(this.state);
     }
 
-    // Ensure initial state drives music and dialogs immediately
+    // Ensure initial state drives music, dialogs, and videos immediately
     this.updateMusicForState();
     this.updateDialogsForState();
+    this.updateVideosForState();
   }
 
   /**
@@ -254,6 +246,9 @@ class GameManager {
 
     // Update dialogs based on new state
     this.updateDialogsForState();
+
+    // Update videos based on new state
+    this.updateVideosForState();
 
     // Update SFX based on new state
     this.updateSFXForState();
@@ -379,6 +374,17 @@ class GameManager {
     } else if (this.state.cityAmbiance === false) {
       this.sfxManager.stop("city-ambiance");
     }
+  }
+
+  /**
+   * Update videos based on current game state
+   * Triggers auto-play videos whose conditions are met
+   */
+  updateVideosForState() {
+    if (!this.videoManager) return;
+
+    // Delegate to videoManager's state change handler
+    this.videoManager.handleStateChange(this.state, this.state);
   }
 
   /**
