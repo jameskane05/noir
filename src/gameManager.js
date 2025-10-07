@@ -5,6 +5,7 @@ import { getSceneObjectsForState } from "./sceneData.js";
 import { startScreen, GAME_STATES } from "./gameData.js";
 import { getDebugSpawnState, isDebugSpawnActive } from "./debugSpawner.js";
 import PhoneBooth from "./content/phonebooth.js";
+import VideoPlayer from "./content/videoPlayer.js";
 
 /**
  * GameManager - Central game state and event management
@@ -137,7 +138,24 @@ class GameManager {
       scene: managers.scene,
       camera: this.camera,
     });
-    this.phoneBooth.initialize();
+    this.phoneBooth.initialize(this);
+
+    // Initialize video player for character performance
+    this.videoPlayer = new VideoPlayer({
+      sceneManager: this.sceneManager,
+      scene: managers.scene,
+      gameManager: this,
+      camera: this.camera,
+      videoPath: "/video/1007.webm",
+      position: [10, 1, 35], // Position in 3D space
+      rotation: [0, -Math.PI / 2, 0], // Face toward player
+      scale: [3, 3, 3], // Size of video plane
+      playOnStates: [GAME_STATES.TITLE_SEQUENCE_COMPLETE],
+      loop: true,
+      autoplay: true,
+      billboard: true,
+    });
+    this.videoPlayer.initialize();
 
     // Attempt initial autoplay/stop based on starting state
     // Ensures startScreen sounds (e.g., city ambiance) begin immediately when possible
@@ -215,6 +233,20 @@ class GameManager {
   setState(newState) {
     const oldState = { ...this.state };
     this.state = { ...this.state, ...newState };
+
+    // Log state changes
+    if (
+      newState.currentState !== undefined &&
+      newState.currentState !== oldState.currentState
+    ) {
+      console.log(
+        `GameManager: State changed from ${oldState.currentState} to ${newState.currentState}`
+      );
+    }
+    if (Object.keys(newState).length > 0) {
+      console.log("GameManager: setState called with:", newState);
+    }
+
     this.emit("state:changed", this.state, oldState);
 
     // Update music based on new state
@@ -311,16 +343,20 @@ class GameManager {
   updateDialogsForState() {
     if (!this.dialogManager) return;
 
-    // Don't trigger new dialogs if one is already pending (let it play first)
-    // But DO allow canceling currently playing dialogs with new ones
-    if (this.dialogManager.hasDialogsPending()) return;
-
     const matchingDialogs = getDialogsForState(this.state, this.playedDialogs);
 
-    // Play the first matching dialog (highest priority)
-    // DialogManager will cancel any currently playing dialog
+    // If there are matching dialogs for the new state
     if (matchingDialogs.length > 0) {
       const dialog = matchingDialogs[0];
+
+      // Cancel any pending dialogs if we have a higher priority one
+      if (this.dialogManager.hasDialogsPending()) {
+        console.log(
+          `GameManager: Canceling pending dialogs for new dialog "${dialog.id}"`
+        );
+        this.dialogManager.cancelAllDelayedDialogs();
+      }
+
       console.log(`GameManager: Auto-playing dialog "${dialog.id}"`);
       this.playDialog(dialog.id, dialog);
     }

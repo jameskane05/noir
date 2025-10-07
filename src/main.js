@@ -7,8 +7,9 @@ import CharacterController from "./characterController.js";
 import MusicManager from "./musicManager.js";
 import SFXManager from "./sfxManager.js";
 import LightManager from "./lightManager.js";
-import OptionsMenu from "./optionsMenu.js";
+import OptionsMenu from "./ui/optionsMenu.js";
 import DialogManager from "./dialogManager.js";
+import DialogChoiceUI from "./ui/dialogChoiceUI.js";
 import GameManager from "./gameManager.js";
 import UIManager from "./uiManager.js";
 import ColliderManager from "./colliderManager.js";
@@ -33,7 +34,7 @@ const camera = new THREE.PerspectiveCamera(
 camera.position.set(0, 5, 0);
 scene.add(camera); // Add camera to scene so its children render
 
-const renderer = new THREE.WebGLRenderer();
+const renderer = new THREE.WebGLRenderer({ alpha: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
@@ -113,7 +114,8 @@ const characterController = new CharacterController(
   character,
   camera,
   renderer,
-  sfxManager
+  sfxManager,
+  spark // Pass spark renderer for DoF control
 );
 
 // Register SFX from data
@@ -152,6 +154,7 @@ const optionsMenu = new OptionsMenu({
   gameManager: gameManager,
   uiManager: uiManager,
   sparkRenderer: spark,
+  characterController: characterController,
 });
 
 // Initialize start screen (only if not skipping)
@@ -180,12 +183,22 @@ if (!gameManager.shouldSkipIntro()) {
   });
 }
 
+// Initialize dialog choice UI
+const dialogChoiceUI = new DialogChoiceUI({
+  gameManager: gameManager,
+});
+
 // Initialize dialog manager with HTML captions
 const dialogManager = new DialogManager({
   audioVolume: 1.0,
   useSplats: false, // Use HTML instead of text splats
   sfxManager: sfxManager, // Link to SFX manager for volume control
+  gameManager: gameManager, // Link to game manager for state updates
+  dialogChoiceUI: dialogChoiceUI, // Link to dialog choice UI
 });
+
+// Link dialog manager to choice UI
+dialogChoiceUI.dialogManager = dialogManager;
 
 // Register dialog manager with SFX manager
 sfxManager.registerDialogManager(dialogManager);
@@ -229,10 +242,32 @@ const colliderManager = new ColliderManager(
 window.colliderManager = colliderManager;
 
 // Global escape key handler for options menu (only works when game is active, not during intro)
+// Track ESC key press time to distinguish between quick press (menu) and held (exit fullscreen)
+let escapeKeyDownTime = null;
+
 window.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && (!startScreen || !startScreen.isActive)) {
+    // Record when ESC was first pressed (ignore repeat events)
+    if (!e.repeat && escapeKeyDownTime === null) {
+      escapeKeyDownTime = Date.now();
+    }
+  }
+});
+
+window.addEventListener("keyup", (e) => {
+  if (e.key === "Escape" && (!startScreen || !startScreen.isActive)) {
     e.preventDefault();
-    optionsMenu.toggle();
+
+    // Only toggle menu if ESC was pressed for less than 200ms (short press)
+    if (escapeKeyDownTime !== null) {
+      const pressDuration = Date.now() - escapeKeyDownTime;
+
+      if (pressDuration < 200) {
+        optionsMenu.toggle();
+      }
+
+      escapeKeyDownTime = null;
+    }
   }
 });
 
@@ -264,6 +299,11 @@ renderer.setAnimationLoop(function animate(time) {
     // Update collider manager (check for trigger intersections)
     if (gameManager.isControlEnabled()) {
       colliderManager.update(character);
+    }
+
+    // Update video player (billboard to camera)
+    if (gameManager.videoPlayer) {
+      gameManager.videoPlayer.update(dt);
     }
 
     // Update Howler listener position for spatial audio

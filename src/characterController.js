@@ -3,11 +3,18 @@ import { Howl } from "howler";
 import BreathingSystem from "./wip/breathingSystem.js";
 
 class CharacterController {
-  constructor(character, camera, renderer, sfxManager = null) {
+  constructor(
+    character,
+    camera,
+    renderer,
+    sfxManager = null,
+    sparkRenderer = null
+  ) {
     this.character = character;
     this.camera = camera;
     this.renderer = renderer;
     this.sfxManager = sfxManager;
+    this.sparkRenderer = sparkRenderer;
 
     // Movement state
     this.keys = { w: false, a: false, s: false, d: false, shift: false };
@@ -27,6 +34,22 @@ class CharacterController {
     this.lookAtEndQuat = new THREE.Quaternion();
     this.lookAtOnComplete = null;
     this.inputDisabled = false;
+
+    // Depth of Field system
+    this.dofEnabled = true; // Can be controlled externally
+    this.baseApertureSize = 0.01; // Base aperture from options menu
+    this.baseFocalDistance = 6.0; // Base focal distance from options menu
+    this.currentFocalDistance = this.baseFocalDistance;
+    this.currentApertureSize = this.baseApertureSize;
+    this.targetFocalDistance = this.baseFocalDistance;
+    this.targetApertureSize = this.baseApertureSize;
+    this.dofTransitioning = false;
+    this.lookAtDofActive = false; // Track if we're in look-at DoF mode
+    this.dofHoldTimer = 0; // Time to hold DoF after look-at completes
+    this.dofHoldDuration = 2.0; // Hold DoF for 2 seconds
+    this.dofTransitionStartProgress = 0.8; // Start DoF transition at 80% of look-at animation
+    this.dofTransitionDuration = 2; // How long the DoF transition takes in seconds
+    this.dofTransitionProgress = 0; // Current progress of DoF transition (0 to 1)
 
     // Headbob state
     this.headbobTime = 0;
@@ -156,6 +179,42 @@ class CharacterController {
       new THREE.Euler(targetPitch, targetYaw, 0, "YXZ")
     );
 
+    // Calculate DoF values based on distance to target (but don't start transition yet)
+    if (this.sparkRenderer && this.dofEnabled) {
+      const distance = this.camera.position.distanceTo(targetPosition);
+
+      // Calculate target DoF settings
+      const targetFocalDistance = distance;
+
+      // Calculate aperture size for dramatic DoF effect
+      // Larger aperture = more blur, smaller = less blur
+      const minAperture = 0.15; // Strong effect even at distance
+      const maxAperture = 0.35; // Very dramatic close-up effect
+
+      // Scale aperture based on distance (closer = more DoF, further = less)
+      // Clamp distance between 2 and 20 meters for sensible scaling
+      const normalizedDistance = Math.max(2, Math.min(20, distance));
+      const apertureScale = 1 - (normalizedDistance - 2) / 18; // 1.0 at 2m, 0.0 at 20m
+      const targetApertureSize =
+        minAperture + (maxAperture - minAperture) * apertureScale;
+
+      // Store target values but don't start transition yet
+      // Transition will start based on look-at progress
+      this.targetFocalDistance = targetFocalDistance;
+      this.targetApertureSize = targetApertureSize;
+      this.lookAtDofActive = true;
+      this.dofHoldTimer = 0; // Reset hold timer
+      this.dofTransitionProgress = 0; // Reset progress
+
+      console.log(
+        `CharacterController: DoF ready - Distance: ${distance.toFixed(
+          2
+        )}m, Aperture: ${targetApertureSize.toFixed(3)} (will transition at ${(
+          this.dofTransitionStartProgress * 100
+        ).toFixed(0)}% over ${this.dofTransitionDuration}s)`
+      );
+    }
+
     console.log(`CharacterController: Looking at target over ${duration}s`);
   }
 
@@ -187,6 +246,16 @@ class CharacterController {
       this.pitch = euler.x;
       this.targetYaw = this.yaw;
       this.targetPitch = this.pitch;
+    }
+
+    // Return DoF to base if it was active
+    if (this.sparkRenderer && this.lookAtDofActive) {
+      this.targetFocalDistance = this.baseFocalDistance;
+      this.targetApertureSize = this.baseApertureSize;
+      this.lookAtDofActive = false;
+      this.dofTransitioning = true;
+      this.dofTransitionProgress = 0; // Reset for return transition
+      console.log(`CharacterController: Returning DoF to base (cancelled)`);
     }
 
     console.log("CharacterController: Look-at cancelled, control restored");
@@ -236,6 +305,81 @@ class CharacterController {
       new THREE.Vector3(0, 1, 0)
     );
     return { forward, right };
+  }
+
+  /**
+   * Set DoF enabled state (called by options menu)
+   * @param {boolean} enabled - Whether DoF is enabled
+   */
+  setDofEnabled(enabled) {
+    this.dofEnabled = enabled;
+    console.log(`CharacterController: DoF ${enabled ? "enabled" : "disabled"}`);
+  }
+
+  /**
+   * Update depth of field parameters
+   * @param {number} dt - Delta time
+   */
+  updateDepthOfField(dt) {
+    if (!this.sparkRenderer || !this.dofEnabled) return;
+
+    // Handle DoF hold timer
+    if (this.dofHoldTimer > 0) {
+      this.dofHoldTimer -= dt;
+      if (this.dofHoldTimer <= 0) {
+        // Hold period over, start transitioning back to base
+        this.dofHoldTimer = 0;
+        this.targetFocalDistance = this.baseFocalDistance;
+        this.targetApertureSize = this.baseApertureSize;
+        this.lookAtDofActive = false;
+        this.dofTransitioning = true;
+        this.dofTransitionProgress = 0; // Reset for return transition
+        console.log(
+          `CharacterController: Hold complete, returning DoF to base - Aperture: ${this.baseApertureSize.toFixed(
+            3
+          )}`
+        );
+      }
+    }
+
+    if (!this.dofTransitioning) return;
+
+    // Update transition progress based on duration parameter
+    this.dofTransitionProgress += dt / this.dofTransitionDuration;
+    const t = Math.min(1.0, this.dofTransitionProgress);
+
+    // Use ease-out for smooth transition
+    const eased = 1 - Math.pow(1 - t, 3);
+
+    // Calculate start values (where we're transitioning from)
+    const startFocalDistance = this.lookAtDofActive
+      ? this.baseFocalDistance
+      : this.currentFocalDistance;
+    const startApertureSize = this.lookAtDofActive
+      ? this.baseApertureSize
+      : this.currentApertureSize;
+
+    // Interpolate values
+    this.currentFocalDistance =
+      startFocalDistance +
+      (this.targetFocalDistance - startFocalDistance) * eased;
+    this.currentApertureSize =
+      startApertureSize + (this.targetApertureSize - startApertureSize) * eased;
+
+    // Update spark renderer
+    const apertureAngle =
+      2 *
+      Math.atan((0.5 * this.currentApertureSize) / this.currentFocalDistance);
+    this.sparkRenderer.apertureAngle = apertureAngle;
+    this.sparkRenderer.focalDistance = this.currentFocalDistance;
+
+    // Check if transition is complete
+    if (t >= 1.0) {
+      this.currentFocalDistance = this.targetFocalDistance;
+      this.currentApertureSize = this.targetApertureSize;
+      this.dofTransitioning = false;
+      this.dofTransitionProgress = 0;
+    }
   }
 
   calculateIdleHeadbob() {
@@ -390,9 +534,26 @@ class CharacterController {
   }
 
   update(dt) {
+    // Update depth of field (always active during transitions)
+    this.updateDepthOfField(dt);
+
     // Handle camera look-at sequence
     if (this.isLookingAt) {
       this.lookAtProgress += dt / this.lookAtDuration;
+
+      // Start DoF transition when we reach the threshold
+      if (
+        this.lookAtDofActive &&
+        !this.dofTransitioning &&
+        this.lookAtProgress >= this.dofTransitionStartProgress
+      ) {
+        this.dofTransitioning = true;
+        console.log(
+          `CharacterController: Starting DoF transition at ${(
+            this.lookAtProgress * 100
+          ).toFixed(0)}%`
+        );
+      }
 
       if (this.lookAtProgress >= 1.0) {
         // Look-at complete
@@ -406,6 +567,14 @@ class CharacterController {
         this.glanceState = null;
         this.idleTime = 0;
         this.glanceTimer = 3.0;
+
+        // Start DoF hold timer (don't immediately return to base)
+        if (this.sparkRenderer && this.lookAtDofActive) {
+          this.dofHoldTimer = this.dofHoldDuration;
+          console.log(
+            `CharacterController: Holding DoF for ${this.dofHoldDuration}s`
+          );
+        }
 
         // Call completion callback if provided
         if (this.lookAtOnComplete) {
@@ -429,7 +598,7 @@ class CharacterController {
       // Apply quaternion to camera
       this.camera.quaternion.copy(currentQuat);
 
-      // Update yaw/pitch to match (for smooth transition back to player control)
+      // Update yaw/pitch for smooth handoff to normal control
       const euler = new THREE.Euler().setFromQuaternion(currentQuat, "YXZ");
       this.yaw = euler.y;
       this.pitch = euler.x;

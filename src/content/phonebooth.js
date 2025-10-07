@@ -24,11 +24,16 @@ class PhoneBooth {
     this.receiverLerp = null;
     this.receiver = null;
     this.cordAttach = null;
+    this.receiverPositionLocked = false;
+    this.lockedReceiverPos = null;
+    this.lockedReceiverRot = null;
 
     // Phone cord physics simulation
     this.cordLinks = []; // Array of { rigidBody, mesh, joint }
     this.cordLineMesh = null; // Visual line representation
     this.receiverAnchor = null; // Kinematic body that follows the receiver
+    this.receiverRigidBody = null; // Dynamic rigid body for dropped receiver
+    this.receiverCollider = null; // Collider for dropped receiver
 
     // Configuration
     this.config = {
@@ -44,6 +49,13 @@ class PhoneBooth {
       cordDamping: 1.5, // Linear damping
       cordAngularDamping: 1.5, // Angular damping
       cordDroopAmount: 2, // How much the cord droops in the middle (0 = straight, 1+ = more droop)
+
+      // Receiver physics configuration (for when dropped)
+      receiverColliderHeight: 0.215, // Height of cylindrical collider in meters
+      receiverColliderRadius: 0.05, // Radius of cylindrical collider in meters
+      receiverMass: 0.15, // Mass in kg (phone receivers are ~150g)
+      receiverDamping: 0.8, // Linear damping
+      receiverAngularDamping: 1.0, // Angular damping
     };
   }
 
@@ -51,11 +63,13 @@ class PhoneBooth {
    * Initialize the phonebooth
    * Sets up event listeners and creates the phone cord
    */
-  initialize() {
+  initialize(gameManager = null) {
     if (!this.sceneManager) {
       console.warn("PhoneBooth: No SceneManager provided");
       return;
     }
+
+    this.gameManager = gameManager;
 
     // Listen for animation finished events
     this.sceneManager.on("animation:finished", (animId) => {
@@ -63,6 +77,40 @@ class PhoneBooth {
         this.handleAnimationFinished();
       }
     });
+
+    // Listen for game state changes
+    if (this.gameManager) {
+      this.gameManager.on("state:changed", (newState, oldState) => {
+        // When leaving ANSWERED_PHONE state
+        if (
+          oldState.currentState === GAME_STATES.ANSWERED_PHONE &&
+          newState.currentState !== GAME_STATES.ANSWERED_PHONE
+        ) {
+          // Stop receiver lerp at current position
+          this.stopReceiverLerp();
+
+          // If receiver is attached to camera, lock its local position
+          if (this.receiver && this.receiver.parent === this.camera) {
+            console.log(
+              "PhoneBooth: Locking receiver position relative to camera"
+            );
+            // Store the current local position to prevent any transform updates
+            const lockedPos = this.receiver.position.clone();
+            const lockedRot = this.receiver.rotation.clone();
+
+            // Set a flag to prevent position updates
+            this.receiverPositionLocked = true;
+            this.lockedReceiverPos = lockedPos;
+            this.lockedReceiverRot = lockedRot;
+          }
+        }
+
+        // When entering DRIVE_BY state, drop the receiver with physics
+        if (newState.currentState === GAME_STATES.DRIVE_BY) {
+          this.dropReceiverWithPhysics();
+        }
+      });
+    }
 
     // Find the CordAttach and Receiver meshes
     this.cordAttach = this.sceneManager.findChildByName(
@@ -456,6 +504,152 @@ class PhoneBooth {
   }
 
   /**
+   * Stop the receiver lerp animation
+   * Keeps receiver attached to camera and physics following it
+   */
+  stopReceiverLerp() {
+    if (this.receiverLerp) {
+      console.log("PhoneBooth: Stopping receiver lerp");
+      // Stop the lerp at its current position
+      this.receiverLerp = null;
+    }
+  }
+
+  /**
+   * Drop the receiver with physics
+   * Detaches from camera and adds a dynamic rigid body so it falls and hangs by the cord
+   */
+  dropReceiverWithPhysics() {
+    if (!this.receiver || !this.physicsManager || !this.receiverAnchor) {
+      console.warn(
+        "PhoneBooth: Cannot drop receiver - missing receiver, physics manager, or anchor"
+      );
+      return;
+    }
+
+    console.log("PhoneBooth: Dropping receiver with physics");
+
+    // Unlock position so we can move it
+    this.receiverPositionLocked = false;
+    this.lockedReceiverPos = null;
+    this.lockedReceiverRot = null;
+
+    // Get current world position and rotation before reparenting
+    const worldPos = new THREE.Vector3();
+    const worldQuat = new THREE.Quaternion();
+    this.receiver.getWorldPosition(worldPos);
+    this.receiver.getWorldQuaternion(worldQuat);
+
+    console.log(
+      "PhoneBooth: Receiver current parent:",
+      this.receiver.parent?.name || "none"
+    );
+    console.log(
+      "PhoneBooth: Receiver world position before detach:",
+      worldPos.toArray()
+    );
+
+    // Detach from camera and add to scene using THREE.js attach method
+    // This preserves world transform
+    this.scene.attach(this.receiver);
+
+    console.log(
+      "PhoneBooth: Receiver detached from camera, new parent:",
+      this.receiver.parent?.name || "none"
+    );
+    console.log(
+      "PhoneBooth: Receiver world position after detach:",
+      this.receiver.position.toArray()
+    );
+
+    // Get RAPIER physics world
+    const world = this.physicsManager.world;
+    if (!world) {
+      console.error("PhoneBooth: Physics world not available");
+      return;
+    }
+
+    // Import RAPIER from physics manager
+    const RAPIER = this.physicsManager.RAPIER;
+
+    // Get updated world position after reparenting (in case attach changed local coords)
+    this.receiver.getWorldPosition(worldPos);
+    this.receiver.getWorldQuaternion(worldQuat);
+
+    // Create a dynamic rigid body for the receiver
+    const receiverBodyDesc = RAPIER.RigidBodyDesc.dynamic()
+      .setTranslation(worldPos.x, worldPos.y, worldPos.z)
+      .setRotation({
+        w: worldQuat.w,
+        x: worldQuat.x,
+        y: worldQuat.y,
+        z: worldQuat.z,
+      })
+      .setLinearDamping(this.config.receiverDamping)
+      .setAngularDamping(this.config.receiverAngularDamping);
+
+    this.receiverRigidBody = world.createRigidBody(receiverBodyDesc);
+
+    // Create cylindrical collider (Y-axis aligned by default)
+    const colliderDesc = RAPIER.ColliderDesc.cylinder(
+      this.config.receiverColliderHeight / 2, // Half-height
+      this.config.receiverColliderRadius
+    ).setMass(this.config.receiverMass);
+
+    this.receiverCollider = world.createCollider(
+      colliderDesc,
+      this.receiverRigidBody
+    );
+
+    console.log(
+      `PhoneBooth: Created receiver rigid body with cylinder collider (h=${this.config.receiverColliderHeight}m, r=${this.config.receiverColliderRadius}m, mass=${this.config.receiverMass}kg)`
+    );
+
+    // Find the last joint connecting to the receiver anchor
+    const lastLinkIndex = this.cordLinks.findIndex(
+      (link) => link.rigidBody === this.receiverAnchor
+    );
+
+    if (lastLinkIndex > 0) {
+      // Get the second-to-last link (the last cord segment before the anchor)
+      const secondToLastLink = this.cordLinks[lastLinkIndex - 1];
+
+      // Remove old joint to the kinematic anchor (if it exists)
+      if (secondToLastLink.joint) {
+        world.removeImpulseJoint(secondToLastLink.joint, true);
+        secondToLastLink.joint = null;
+      }
+
+      // Create new rope joint connecting last cord segment to receiver rigid body
+      const jointParams = RAPIER.JointData.rope(
+        this.config.cordSegmentLength * 1.2, // Max length with slack
+        { x: 0, y: 0, z: 0 }, // Anchor on cord segment
+        { x: 0, y: 0, z: 0 } // Anchor on receiver
+      );
+
+      const newJoint = world.createImpulseJoint(
+        jointParams,
+        secondToLastLink.rigidBody,
+        this.receiverRigidBody,
+        true
+      );
+
+      secondToLastLink.joint = newJoint;
+
+      console.log("PhoneBooth: Reconnected cord to receiver rigid body");
+
+      // Remove the old kinematic anchor from physics and cordLinks
+      world.removeRigidBody(this.receiverAnchor);
+      this.cordLinks.splice(lastLinkIndex, 1);
+
+      // Replace receiverAnchor reference with new rigid body
+      this.receiverAnchor = this.receiverRigidBody;
+    } else {
+      console.warn("PhoneBooth: Could not find receiver anchor in cord links");
+    }
+  }
+
+  /**
    * Update receiver lerp animation
    * @param {number} dt - Delta time in seconds
    */
@@ -492,8 +686,31 @@ class PhoneBooth {
   update(dt) {
     this.updateReceiverLerp(dt);
 
-    // Update receiver anchor position to follow the receiver
-    if (this.receiverAnchor && this.receiver) {
+    // If receiver position is locked, enforce it (prevents animation system from moving it)
+    if (
+      this.receiverPositionLocked &&
+      this.receiver &&
+      this.lockedReceiverPos
+    ) {
+      this.receiver.position.copy(this.lockedReceiverPos);
+      this.receiver.rotation.copy(this.lockedReceiverRot);
+    }
+
+    // If receiver has its own physics body, sync mesh with physics
+    if (this.receiverRigidBody && this.receiver) {
+      const translation = this.receiverRigidBody.translation();
+      const rotation = this.receiverRigidBody.rotation();
+
+      this.receiver.position.set(translation.x, translation.y, translation.z);
+      this.receiver.quaternion.set(
+        rotation.x,
+        rotation.y,
+        rotation.z,
+        rotation.w
+      );
+    }
+    // Otherwise, update kinematic anchor to follow the receiver
+    else if (this.receiverAnchor && this.receiver && !this.receiverRigidBody) {
       const receiverPos = new THREE.Vector3();
       this.receiver.getWorldPosition(receiverPos);
       this.receiverAnchor.setTranslation(

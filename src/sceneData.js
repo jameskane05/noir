@@ -67,7 +67,7 @@ export const sceneObjects = {
         clipName: null, // null = use first animation clip from GLTF
         loop: false, // Whether the animation should loop
         playOn: [GAME_STATES.ANSWERED_PHONE], // Game states that trigger playback
-        stopOn: [], // Game states that stop playback
+        stopOn: [GAME_STATES.DIALOG_CHOICE_1], // Stop when leaving phone interaction
         autoPlay: true, // Automatically play when state conditions are met
         timeScale: 1.0, // Playback speed (1.0 = normal)
       },

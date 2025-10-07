@@ -125,6 +125,16 @@ export const sfxSounds = {
     preload: true,
     playOn: [GAME_STATES.ANSWERED_PHONE],
   },
+
+  "engine-and-gun": {
+    id: "engine-and-gun",
+    src: ["/audio/sfx/engine-and-gun.mp3"],
+    volume: 0.9,
+    loop: false,
+    spatial: false, // Non-spatial for dramatic effect
+    preload: true,
+    playOn: [GAME_STATES.DRIVE_BY],
+  },
 };
 
 /**
@@ -149,7 +159,10 @@ export const sfxTriggers = {
   footstepsPavement: "footsteps-pavement",
   footstepsGravel: "footsteps-gravel",
 
-  // Game state triggers (add more as needed)
+  // Game state triggers
+  engineAndGun: "engine-and-gun",
+
+  // (add more as needed)
   // doorOpen: "door-open",
   // doorClose: "door-close",
   // glassBreak: "glass-break",

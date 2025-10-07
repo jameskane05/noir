@@ -30,6 +30,14 @@ export const musicTracks = {
     fadeTime: 2.0,
     priority: 100,
   },
+  rachDriveBy: {
+    id: "rachDriveBy",
+    path: "./audio/music/rach 3 - mv 2 - 4-30.mp3",
+    description: "Rachmaninoff 3 - Movement 2 (4:30) - Drive-by sequence",
+    requiresState: { currentState: GAME_STATES.DRIVE_BY },
+    fadeTime: 1.0,
+    priority: 90,
+  },
   rach1: {
     id: "rach1",
     path: "./audio/music/rach 3 - mv 1 - 0-40.mp3",

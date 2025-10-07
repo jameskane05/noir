@@ -19,6 +19,8 @@ class DialogManager {
     this.scene = options.scene || null;
     this.camera = options.camera || null;
     this.sfxManager = options.sfxManager || null;
+    this.gameManager = options.gameManager || null;
+    this.dialogChoiceUI = options.dialogChoiceUI || null;
 
     // Caption display (HTML or text splat)
     if (this.useSplats && this.scene && this.camera) {
@@ -281,6 +283,18 @@ class DialogManager {
   }
 
   /**
+   * Cancel all pending delayed dialogs
+   */
+  cancelAllDelayedDialogs() {
+    if (this.pendingDialogs.size > 0) {
+      console.log(
+        `DialogManager: Cancelling ${this.pendingDialogs.size} pending dialog(s)`
+      );
+      this.pendingDialogs.clear();
+    }
+  }
+
+  /**
    * Immediately play a dialog (internal method)
    * @param {Object} dialogData - Dialog data object
    * @param {Function} onComplete - Optional callback
@@ -403,11 +417,55 @@ class DialogManager {
     this.currentDialog = null;
     this.currentAudio = null;
 
+    // Check if this dialog should trigger choices
+    if (completedDialog && this.dialogChoiceUI) {
+      // Import dialogChoiceData dynamically to check for choices
+      import("./dialogChoiceData.js").then((module) => {
+        const choiceConfig = module.getChoiceForDialog(completedDialog.id);
+
+        if (choiceConfig) {
+          console.log(
+            `DialogManager: Showing choices for dialog "${completedDialog.id}"`
+          );
+          const choiceData = module.buildChoiceData(choiceConfig);
+          this.dialogChoiceUI.showChoices(choiceData);
+        } else {
+          // No choices, call onComplete if available
+          this.handleOnComplete(completedDialog);
+        }
+      });
+    } else {
+      // No choice UI, call onComplete if available
+      this.handleOnComplete(completedDialog);
+    }
+
     this.emit("dialog:complete", completedDialog);
 
     if (this.onCompleteCallback) {
       this.onCompleteCallback(completedDialog);
       this.onCompleteCallback = null;
+    }
+  }
+
+  /**
+   * Handle onComplete callback for dialog
+   * @param {Object} dialog - Completed dialog
+   */
+  handleOnComplete(dialog) {
+    if (dialog && dialog.onComplete && this.gameManager) {
+      if (typeof dialog.onComplete === "function") {
+        try {
+          console.log(
+            `DialogManager: Calling onComplete for dialog "${dialog.id}"`
+          );
+          dialog.onComplete(this.gameManager);
+        } catch (error) {
+          console.error(
+            `DialogManager: Error in onComplete for dialog "${dialog.id}":`,
+            error
+          );
+        }
+      }
     }
   }
 
