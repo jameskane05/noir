@@ -170,14 +170,19 @@ class DialogChoiceUI {
 
       switch (event.key) {
         case "ArrowUp":
+        case "w":
+        case "W":
           event.preventDefault();
           this.moveSelection(-1);
           break;
         case "ArrowDown":
+        case "S":
+        case "s":
           event.preventDefault();
           this.moveSelection(1);
           break;
         case "Enter":
+        case " ":
           event.preventDefault();
           this.confirmSelection();
           break;

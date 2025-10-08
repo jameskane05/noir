@@ -101,9 +101,8 @@ export const colliders = [
     onExit: [],
     once: true, // Triggers once then cleans itself up
     enabled: true,
-    // Optional: Activation conditions
     // criteria: { titleComplete: true }, // Simple key-value check
-    // criteria: { currentState: { $gte: GAME_STATES.INTRO_COMPLETE } }, // Range check
+    criteria: { currentState: GAME_STATES.INTRO },
   },
 
   // Phonebooth interaction - only available after hearing the phone ring
