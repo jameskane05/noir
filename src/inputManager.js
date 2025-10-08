@@ -24,6 +24,11 @@ class InputManager {
     this.enabled = true;
     this.movementEnabled = true; // Separate control for movement
     this.rotationEnabled = true; // Separate control for look rotation
+    this.pointerLockBlocked = false; // When true, do not request pointer lock
+    this.dragToLookEnabled = true; // Allow click-drag to look when pointer lock is blocked
+    this.isMouseDown = false;
+    this.lastMousePos = { x: 0, y: 0 };
+    this.gizmoProbe = null; // Optional function returning boolean: is pointer over/dragging gizmo
 
     // Touch joysticks
     this.leftJoystick = null;
@@ -116,17 +121,68 @@ class InputManager {
     // Pointer lock + mouse look
     this.rendererDomElement.addEventListener("click", () => {
       if (!this.enabled) return;
+      if (this.pointerLockBlocked) return;
       this.rendererDomElement.requestPointerLock();
     });
 
     document.addEventListener("mousemove", (event) => {
       if (!this.enabled) return;
-      if (document.pointerLockElement !== this.rendererDomElement) return;
+      const isLocked = document.pointerLockElement === this.rendererDomElement;
+      const overGizmo = this.gizmoProbe ? this.gizmoProbe() : false;
 
-      // Accumulate mouse delta for this frame
-      this.mouseDelta.x += event.movementX;
-      this.mouseDelta.y += event.movementY;
+      if (isLocked) {
+        // Pointer lock mode: use movement deltas
+        this.mouseDelta.x += event.movementX;
+        this.mouseDelta.y += event.movementY;
+        return;
+      }
+
+      // Drag-to-look when pointer lock is blocked, only if mouse is down and not over gizmo
+      if (
+        this.pointerLockBlocked &&
+        this.dragToLookEnabled &&
+        this.isMouseDown &&
+        !overGizmo
+      ) {
+        const dx = event.clientX - this.lastMousePos.x;
+        const dy = event.clientY - this.lastMousePos.y;
+        this.mouseDelta.x += dx;
+        this.mouseDelta.y += dy;
+        this.lastMousePos.x = event.clientX;
+        this.lastMousePos.y = event.clientY;
+      }
     });
+
+    // Track mouse down/up for drag-to-look
+    document.addEventListener("mousedown", (event) => {
+      if (!this.enabled) return;
+      this.isMouseDown = true;
+      this.lastMousePos.x = event.clientX;
+      this.lastMousePos.y = event.clientY;
+    });
+    document.addEventListener("mouseup", () => {
+      if (!this.enabled) return;
+      this.isMouseDown = false;
+    });
+  }
+
+  /**
+   * Block or allow pointer lock acquisition (e.g., when editing with gizmo)
+   * @param {boolean} blocked
+   */
+  setPointerLockBlocked(blocked) {
+    this.pointerLockBlocked = !!blocked;
+    if (this.pointerLockBlocked && document.pointerLockElement) {
+      document.exitPointerLock();
+    }
+  }
+
+  /**
+   * Provide a function so InputManager can know if pointer is on gizmo
+   * @param {Function} probeFn - returns boolean
+   */
+  setGizmoProbe(probeFn) {
+    this.gizmoProbe = typeof probeFn === "function" ? probeFn : null;
   }
 
   /**

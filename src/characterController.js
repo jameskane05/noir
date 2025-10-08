@@ -331,6 +331,15 @@ class CharacterController {
       new THREE.Euler(targetPitch, targetYaw, 0, "YXZ")
     );
 
+    // Ensure we take the shorter rotation path
+    // If dot product is negative, negate the target quaternion
+    if (this.lookAtStartQuat.dot(this.lookAtEndQuat) < 0) {
+      this.lookAtEndQuat.x *= -1;
+      this.lookAtEndQuat.y *= -1;
+      this.lookAtEndQuat.z *= -1;
+      this.lookAtEndQuat.w *= -1;
+    }
+
     // Calculate DoF values based on distance to target (but don't start transition yet)
     if (enableZoom && this.sparkRenderer && this.dofEnabled) {
       const distance = this.camera.position.distanceTo(targetPosition);

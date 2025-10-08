@@ -87,20 +87,20 @@ class CameraAnimationManager {
    */
   async loadAnimationsFromData(animationData) {
     const animations = Object.values(animationData);
-    // Only load JSON animations, skip lookats
+    // Only load JSON animations (jsonAnimation or animation type with path), skip lookats and moveTos
     const animationsToLoad = animations.filter(
-      (anim) => anim.type !== "lookat" && anim.path
+      (anim) =>
+        (anim.type === "jsonAnimation" || anim.type === "animation") &&
+        anim.path
     );
     const loadPromises = animationsToLoad.map((anim) =>
       this.loadAnimation(anim.id, anim.path)
     );
     await Promise.all(loadPromises);
+
+    const nonJsonCount = animations.length - animationsToLoad.length;
     console.log(
-      `CameraAnimationManager: Loaded ${
-        animationsToLoad.length
-      } animations from data (${
-        animations.length - animationsToLoad.length
-      } lookats)`
+      `CameraAnimationManager: Loaded ${animationsToLoad.length} JSON animations from data (${nonJsonCount} lookats/moveTos)`
     );
   }
 
@@ -166,19 +166,25 @@ class CameraAnimationManager {
       return true;
     }
 
-    // Handle animation type (default)
-    const success = this.play(
-      animData.id,
-      () => {
-        // Mark as played if playOnce
-        if (animData.playOnce) {
-          this.playedAnimations.add(animData.id);
-        }
-      },
-      animData
-    );
+    // Handle jsonAnimation or animation type (default)
+    if (animData.type === "jsonAnimation" || animData.type === "animation") {
+      const success = this.play(
+        animData.id,
+        () => {
+          // Mark as played if playOnce
+          if (animData.playOnce) {
+            this.playedAnimations.add(animData.id);
+          }
+        },
+        animData
+      );
+      return success;
+    }
 
-    return success;
+    console.warn(
+      `CameraAnimationManager: Unknown animation type "${animData.type}"`
+    );
+    return false;
   }
 
   /**
@@ -194,6 +200,7 @@ class CameraAnimationManager {
     }
 
     // Emit lookat event through gameManager
+    // Note: This doesn't block isPlaying - lookats can happen during JSON animations
     if (this.gameManager) {
       this.gameManager.emit("camera:lookat", {
         position: lookAtData.position,
@@ -223,6 +230,7 @@ class CameraAnimationManager {
     }
 
     // Emit moveTo event through gameManager
+    // Note: This doesn't block isPlaying - moveTos can happen during JSON animations
     if (this.gameManager) {
       this.gameManager.emit("character:moveto", {
         position: moveToData.position,

@@ -37,7 +37,7 @@ const stateOverrides = {
 
   PHONE_BOOTH_RINGING: {
     controlEnabled: true,
-    playerPosition: { x: 10, y: 0.9, z: 40 }, // Near phone booth
+    playerPosition: { x: 8, y: 0.9, z: 32 }, // Near phone booth
   },
 
   ANSWERED_PHONE: {

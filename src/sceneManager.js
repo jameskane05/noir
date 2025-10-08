@@ -35,9 +35,11 @@ import { checkCriteria } from "./criteriaHelper.js";
  */
 
 class SceneManager {
-  constructor(scene) {
+  constructor(scene, options = {}) {
     this.scene = scene;
+    this.gizmoManager = options.gizmoManager || null; // For debug positioning
     this.objects = new Map(); // Map of id -> THREE.Object3D
+    this.objectData = new Map(); // Map of id -> original config data (for gizmo flag)
     this.gltfLoader = new GLTFLoader();
     this.loadingPromises = new Map(); // Track loading promises
 
@@ -101,18 +103,35 @@ class SceneManager {
       `SceneManager: Loading ${objectsToLoad.length} objects for current state`
     );
 
+    let foundGizmo = false;
     const loadPromises = objectsToLoad.map((objectData) =>
-      this.loadObject(objectData).catch((error) => {
-        console.error(
-          `SceneManager: Failed to load object "${objectData.id}":`,
-          error
-        );
-        // Continue loading other objects even if one fails
-        return null;
-      })
+      this.loadObject(objectData)
+        .catch((error) => {
+          console.error(
+            `SceneManager: Failed to load object "${objectData.id}":`,
+            error
+          );
+          // Continue loading other objects even if one fails
+          return null;
+        })
+        .then((obj) => {
+          if (objectData && objectData.gizmo === true) foundGizmo = true;
+          return obj;
+        })
     );
 
     await Promise.all(loadPromises);
+
+    // Set global gizmo-in-data flag on gameManager if any object declares gizmo
+    try {
+      if (
+        foundGizmo &&
+        window?.gameManager &&
+        typeof window.gameManager.setState === "function"
+      ) {
+        window.gameManager.setState({ hasGizmoInData: true });
+      }
+    } catch {}
   }
 
   /**
@@ -153,8 +172,16 @@ class SceneManager {
     try {
       const object = await loadPromise;
       this.objects.set(id, object);
+      this.objectData.set(id, objectData); // Store original config
       this.loadingPromises.delete(id);
       console.log(`SceneManager: Loaded "${id}" (${type})`);
+
+      // Register with gizmo manager if gizmo flag is set
+      if (objectData.gizmo && this.gizmoManager && object) {
+        console.log(`SceneManager: Registering "${id}" with gizmo...`);
+        this.gizmoManager.registerObject(object, id, type);
+      }
+
       return object;
     } catch (error) {
       this.loadingPromises.delete(id);

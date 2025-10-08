@@ -66,7 +66,8 @@ export class UIManager {
       cameraAnimationManager,
       dialogChoiceUI,
       this.gameManager,
-      inputManager
+      inputManager,
+      characterController
     );
 
     // Wire up idle helper to character controller for glance system

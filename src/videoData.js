@@ -47,9 +47,8 @@ export const videos = {
     loop: true,
     muted: true,
     billboard: true,
-    // Play from START_SCREEN onwards
     criteria: {
-      currentState: { $gte: GAME_STATES.ANSWERED_PHONE },
+      currentState: { $gte: GAME_STATES.START_SCREEN },
     },
     autoPlay: true,
     once: false,
@@ -58,19 +57,20 @@ export const videos = {
   [VIDEO_IDS.CAT]: {
     id: VIDEO_IDS.CAT,
     videoPath: "/video/cat.webm",
-    position: [-106.1, -6.4, -118.0], // 3 meters in front of drive-by video
+    position: [-102.44, -6.4, -118.24], // 3 meters in front of drive-by video
     rotation: [0, -Math.PI / 2, 0],
     scale: [2, 2, 2],
-    loop: false,
+    loop: true,
     muted: true,
     billboard: true,
     criteria: {
       heardCat: true,
     },
     autoPlay: true,
-    delay: 1.0, // Wait 1 second after heardCat becomes true before playing
+    delay: 0.5, // Wait 1 second after heardCat becomes true before playing
     once: false,
     priority: 0,
+    gizmo: true,
   },
 };
 

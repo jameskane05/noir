@@ -43,7 +43,7 @@ class PhoneBooth {
 
       // Cord configuration
       cordSegments: 12, // Number of links in the chain
-      cordSegmentLength: 0.16, // Length of each segment (longer for slack)
+      cordSegmentLength: 0.12, // Length of each segment (longer for slack)
       cordSegmentRadius: 0.002, // Radius of each segment (very slender)
       cordMass: 10, // Mass of each segment (lighter for natural droop)
       cordDamping: 1.5, // Linear damping

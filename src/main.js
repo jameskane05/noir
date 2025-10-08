@@ -18,12 +18,14 @@ import SceneManager from "./sceneManager.js";
 import colliders from "./colliderData.js";
 import { musicTracks } from "./musicData.js";
 import { sceneObjects } from "./sceneData.js";
+import { videos } from "./videoData.js";
 import { createAnimatedTextSplat } from "./textSplat.js";
 import { TitleSequence } from "./titleSequence.js";
 import { StartScreen } from "./startScreen.js";
 import { GAME_STATES } from "./gameData.js";
 import CameraAnimationManager from "./cameraAnimationManager.js";
 import cameraAnimations from "./cameraAnimationData.js";
+import GizmoManager from "./gizmoManager.js";
 import "./styles/optionsMenu.css";
 
 const scene = new THREE.Scene();
@@ -64,6 +66,8 @@ const sceneManager = new SceneManager(scene);
 
 // Make scene manager globally accessible for mesh lookups
 window.sceneManager = sceneManager;
+
+// Note: gizmoManager will be passed to sceneManager after initialization
 
 // Initialize light manager
 const lightManager = new LightManager(scene);
@@ -275,6 +279,36 @@ const colliderManager = new ColliderManager(
 
 // Make collider manager globally accessible for debugging
 window.colliderManager = colliderManager;
+
+// Initialize gizmo manager for debug positioning
+const gizmoManager = new GizmoManager(scene, camera, renderer);
+
+// Pass gizmo manager to scene manager and video manager
+sceneManager.gizmoManager = gizmoManager;
+if (gameManager.videoManager) {
+  gameManager.videoManager.gizmoManager = gizmoManager;
+}
+
+// Make gizmo manager globally accessible for debugging
+window.gizmoManager = gizmoManager;
+// Make game manager globally accessible for gizmoManager setState integration
+window.gameManager = gameManager;
+
+// Standardize global effects via managers (sceneManager/videoManager set game state)
+
+// Allow InputManager to detect gizmo hover/drag to enable drag-to-look when not over gizmo
+if (typeof inputManager.setGizmoProbe === "function") {
+  inputManager.setGizmoProbe(() => gizmoManager.isPointerOverGizmo());
+}
+
+// Standardize: let gizmo manager own global side-effects from now on
+gizmoManager.setIntegration(uiManager?.components?.idleHelper, inputManager);
+
+// Re-apply gizmo registration and blocks whenever state changes (in case objects spawn later)
+gameManager.on("state:changed", () => {
+  // Managers update hasGizmoInData as they load; no extra registration needed here
+});
+gizmoManager.applyPointerLockBlockIfNeeded(inputManager, sceneManager);
 
 // Global escape key handler for options menu (only works when game is active, not during intro)
 // Track ESC key press time to distinguish between quick press (menu) and held (exit fullscreen)

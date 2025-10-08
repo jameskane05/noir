@@ -260,7 +260,7 @@ class DialogManager {
     caption.id = "dialog-caption";
     caption.style.cssText = `
       position: fixed;
-      bottom: 15%;
+      bottom: 6.5%;
       left: 50%;
       transform: translateX(-50%);
       background: transparent;

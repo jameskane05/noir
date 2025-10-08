@@ -4,7 +4,8 @@ export class IdleHelper {
     cameraAnimationSystem = null,
     dialogChoiceUI = null,
     gameManager = null,
-    inputManager = null
+    inputManager = null,
+    characterController = null
   ) {
     this.helperElement = null;
     this.lastMovementTime = null; // Don't start tracking until controls are enabled
@@ -18,12 +19,32 @@ export class IdleHelper {
     this.dialogChoiceUI = dialogChoiceUI;
     this.gameManager = gameManager;
     this.inputManager = inputManager;
+    this.characterController = characterController;
     this.wasControlEnabled = false; // Track previous control state
     this.wasCameraAnimating = false; // Track previous camera animation state
+    this.globalDisable = false; // If true, idle behaviors are fully disabled
 
     this.init();
     this.setupMovementListeners();
     this.startIdleCheck();
+  }
+
+  /**
+   * Globally enable/disable all idle behaviors (e.g., when gizmo editing is active)
+   * @param {boolean} disabled
+   */
+  setGlobalDisable(disabled) {
+    this.globalDisable = !!disabled;
+    if (this.globalDisable) {
+      // Hide any active animation immediately
+      if (this.isAnimating) {
+        this.stopAnimation();
+        this.helperElement.style.opacity = "0";
+      }
+    } else {
+      // Reset timer on re-enable to avoid immediate popup
+      this.lastMovementTime = Date.now();
+    }
   }
 
   init() {
@@ -110,6 +131,10 @@ export class IdleHelper {
    * @returns {boolean} True if player is idle and no blocking conditions are active
    */
   shouldAllowIdleBehavior() {
+    // Block all idle behaviors if globally disabled (e.g., gizmo mode)
+    if (this.globalDisable) {
+      return false;
+    }
     // Check if controls are enabled
     const isControlEnabled =
       this.gameManager && this.gameManager.isControlEnabled();
@@ -126,13 +151,19 @@ export class IdleHelper {
       this.dialogManager.pendingDialogs.size > 0;
     const isCameraAnimating =
       this.cameraAnimationSystem && this.cameraAnimationSystem.isPlaying;
+    const isCharacterLookingAt =
+      this.characterController && this.characterController.isLookingAt;
+    const isCharacterMovingTo =
+      this.characterController && this.characterController.isMovingTo;
     const isChoiceUIOpen = this.dialogChoiceUI && this.dialogChoiceUI.isVisible;
 
-    // Don't allow idle behaviors during any blocking condition (including camera animations)
+    // Don't allow idle behaviors during any blocking condition
     if (
       isDialogPlaying ||
       hasPendingDialog ||
       isCameraAnimating ||
+      isCharacterLookingAt ||
+      isCharacterMovingTo ||
       isChoiceUIOpen
     ) {
       return false;
@@ -284,6 +315,12 @@ export class IdleHelper {
       const isChoiceUIOpen =
         this.dialogChoiceUI && this.dialogChoiceUI.isVisible;
 
+      // Don't show helper if character is in a lookat or moveTo
+      const isCharacterLookingAt =
+        this.characterController && this.characterController.isLookingAt;
+      const isCharacterMovingTo =
+        this.characterController && this.characterController.isMovingTo;
+
       // Note: isCameraAnimating is already defined above (line 205-206)
 
       if (
@@ -292,16 +329,20 @@ export class IdleHelper {
         !isDialogPlaying &&
         !hasPendingDialog &&
         !isCameraAnimating &&
+        !isCharacterLookingAt &&
+        !isCharacterMovingTo &&
         !isChoiceUIOpen
       ) {
         this.startAnimation();
       }
 
-      // Hide helper if dialog starts playing, has pending dialog, camera animation starts, or choice UI opens while it's showing
+      // Hide helper if any blocking condition becomes active while it's showing
       if (
         (isDialogPlaying ||
           hasPendingDialog ||
           isCameraAnimating ||
+          isCharacterLookingAt ||
+          isCharacterMovingTo ||
           isChoiceUIOpen) &&
         this.isAnimating
       ) {

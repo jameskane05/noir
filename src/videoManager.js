@@ -16,6 +16,7 @@ class VideoManager {
     this.scene = options.scene;
     this.gameManager = options.gameManager;
     this.camera = options.camera;
+    this.gizmoManager = options.gizmoManager; // For debug positioning
 
     // Track active video players
     this.videoPlayers = new Map(); // id -> VideoPlayer instance
@@ -28,9 +29,11 @@ class VideoManager {
         this.updateVideosForState(newState);
       });
 
-      // Handle initial state
-      const currentState = this.gameManager.getState();
-      this.updateVideosForState(currentState);
+      // Handle initial state (defer to next tick to allow gizmoManager to be set)
+      setTimeout(() => {
+        const currentState = this.gameManager.getState();
+        this.updateVideosForState(currentState);
+      }, 0);
     }
   }
 
@@ -43,7 +46,9 @@ class VideoManager {
     // Check all videos defined in videoData
     for (const [videoId, videoConfig] of Object.entries(videos)) {
       // Check if video has criteria
-      if (!videoConfig.criteria) continue;
+      if (!videoConfig.criteria) {
+        continue;
+      }
 
       const matchesCriteria = checkCriteria(state, videoConfig.criteria);
       const player = this.videoPlayers.get(videoId);
@@ -128,6 +133,23 @@ class VideoManager {
       player.initialize();
       this.videoPlayers.set(videoId, player);
 
+      // Register with gizmo manager if gizmo flag is set
+      if (videoConfig.gizmo) {
+        if (this.gizmoManager && player.videoMesh) {
+          console.log(
+            `VideoManager: Registering "${videoId}" with gizmo and selecting it...`
+          );
+          this.gizmoManager.registerObject(player.videoMesh, videoId, "video");
+          // Attach immediately so the helper is visible without click
+          if (typeof this.gizmoManager.selectObjectById === "function") {
+            this.gizmoManager.selectObjectById(videoId);
+          }
+        } else if (!this.gizmoManager) {
+          // Store for later registration
+          player._needsGizmoRegistration = true;
+        }
+      }
+
       // Handle video end
       player.video.addEventListener("ended", () => {
         if (videoConfig.once) {
@@ -138,6 +160,22 @@ class VideoManager {
           videoConfig.onComplete(this.gameManager);
         }
       });
+    }
+
+    // Retry gizmo registration if it was delayed
+    if (
+      player._needsGizmoRegistration &&
+      this.gizmoManager &&
+      player.videoMesh
+    ) {
+      console.log(
+        `VideoManager: Retry registering "${videoId}" with gizmo and selecting it`
+      );
+      this.gizmoManager.registerObject(player.videoMesh, videoId, "video");
+      if (typeof this.gizmoManager.selectObjectById === "function") {
+        this.gizmoManager.selectObjectById(videoId);
+      }
+      player._needsGizmoRegistration = false;
     }
 
     player.play();
@@ -250,7 +288,8 @@ class VideoPlayer {
       side: THREE.DoubleSide,
       toneMapped: false,
       depthTest: true,
-      depthWrite: false,
+      depthWrite: true, // allow videos to write to depth so splats can occlude them
+      alphaTest: 0.05, // discard near-fully-transparent pixels to improve depth sorting
     });
 
     // Create plane geometry
@@ -261,7 +300,7 @@ class VideoPlayer {
     this.videoMesh.position.set(...this.config.position);
     this.videoMesh.rotation.set(...this.config.rotation);
     this.videoMesh.scale.set(...this.config.scale);
-    this.videoMesh.renderOrder = 999;
+    // Do not force render order; let depth test handle occlusion with splats
 
     // Store material reference
     this.videoMaterial = material;

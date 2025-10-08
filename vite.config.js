@@ -5,6 +5,9 @@ import mkcert from "vite-plugin-mkcert";
 
 export default defineConfig({
   plugins: [wasm(), topLevelAwait(), mkcert()],
+  resolve: {
+    dedupe: ["three"],
+  },
   server: {
     https: true,
     host: true,

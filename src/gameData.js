@@ -43,6 +43,9 @@ export const startScreen = {
   // Control flow
   controlEnabled: false, // When true, character controller updates/inputs are enabled
 
+  // Debug/authoring
+  hasGizmoInData: false, // True when any data object (scene/video/etc.) declares gizmo: true
+
   // Display state
   isFullscreen: false, // When true, the app is in fullscreen mode
 };
@@ -57,6 +60,8 @@ export const stateDescriptions = {
   playerPosition: "Last known player position in world space.",
   currentState: "High-level app state (e.g., 'startScreen', 'titleSequence').",
   controlEnabled: "Enables character controller updates and input.",
+  hasGizmoInData:
+    "True when any data object declares gizmo: true (authoring mode).",
   titleSequenceComplete: "Set true when title sequence completes.",
   isFullscreen: "True when app is in fullscreen mode.",
 };
