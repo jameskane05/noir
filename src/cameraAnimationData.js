@@ -1,11 +1,11 @@
 /**
  * Camera Animation Data Structure
  *
- * Defines camera animations and lookats, triggered by game state changes.
+ * Defines camera animations, lookats, and character movements triggered by game state changes.
  *
  * Common properties:
  * - id: Unique identifier
- * - type: "animation" or "lookat"
+ * - type: "animation", "lookat", or "moveTo"
  * - description: Human-readable description
  * - criteria: Optional object with key-value pairs that must match game state
  *   - Simple equality: { currentState: GAME_STATES.INTRO }
@@ -34,6 +34,15 @@
  *   - transitionDuration: How long zoom transition takes in seconds
  *   - holdDuration: How long to hold zoom before returning
  *
+ * For type "moveTo":
+ * - position: {x, y, z} world position to move character to
+ * - rotation: {yaw, pitch} target rotation in radians (optional)
+ * - duration: Duration of the movement in seconds (default: 2.0)
+ * - inputControl: What input to disable during movement
+ *   - disableMovement: Disable movement input (default: true)
+ *   - disableRotation: Disable rotation input (default: true)
+ * - onComplete: Optional callback when movement completes
+ *
  * Usage:
  * import { cameraAnimations, getCameraAnimationForState } from './cameraAnimationData.js';
  */
@@ -59,6 +68,47 @@ export const cameraAnimations = {
       holdDuration: 3.0, // Hold the zoom longer for dramatic effect
     },
     criteria: { currentState: GAME_STATES.PHONE_BOOTH_RINGING },
+    priority: 100,
+    playOnce: true,
+  },
+
+  phoneBoothMoveTo: {
+    id: "phoneBoothMoveTo",
+    type: "moveTo",
+    description: "Move character into phone booth when player enters trigger",
+    position: { x: 8.05, y: 0.4, z: 41.65 }, // Center of booth (y: 0.4 for character center)
+    rotation: {
+      yaw: Math.PI / 2, // Face the phone (90 degrees)
+      pitch: 0,
+    },
+    duration: 1.5,
+    inputControl: {
+      disableMovement: true, // Disable movement
+      disableRotation: false, // Allow rotation (player can look around)
+    },
+    criteria: { currentState: GAME_STATES.ANSWERED_PHONE },
+    priority: 100,
+    playOnce: true,
+    // Note: Movement stays disabled until manually restored (e.g., after phone interaction)
+  },
+
+  catLookat: {
+    id: "catLookat",
+    type: "lookat",
+    description: "Look at cat video when player hears cat sound",
+    position: { x: -112.1, y: -1.4, z: -120.0 }, // Cat video position
+    duration: 2.0,
+    restoreControl: true,
+    enableZoom: true,
+    zoomOptions: {
+      zoomFactor: 1.8, // Moderate zoom
+      minAperture: 0.15,
+      maxAperture: 0.35,
+      transitionStart: 0.7, // Start zoom at 70% of look-at
+      transitionDuration: 2.0,
+      holdDuration: 2.5, // Hold zoom for 2.5 seconds
+    },
+    criteria: { heardCat: true },
     priority: 100,
     playOnce: true,
   },

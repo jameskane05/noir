@@ -160,6 +160,12 @@ class CameraAnimationManager {
       return true;
     }
 
+    // Handle moveTo type
+    if (animData.type === "moveTo") {
+      this.playMoveTo(animData);
+      return true;
+    }
+
     // Handle animation type (default)
     const success = this.play(
       animData.id,
@@ -200,6 +206,37 @@ class CameraAnimationManager {
     } else {
       console.warn(
         `CameraAnimationManager: Cannot play lookat '${lookAtData.id}', no gameManager`
+      );
+    }
+  }
+
+  /**
+   * Play a moveTo from data config
+   * @param {Object} moveToData - MoveTo data from cameraAnimationData.js
+   */
+  playMoveTo(moveToData) {
+    console.log(`CameraAnimationManager: Playing moveTo '${moveToData.id}'`);
+
+    // Mark as played if playOnce
+    if (moveToData.playOnce) {
+      this.playedAnimations.add(moveToData.id);
+    }
+
+    // Emit moveTo event through gameManager
+    if (this.gameManager) {
+      this.gameManager.emit("character:moveto", {
+        position: moveToData.position,
+        rotation: moveToData.rotation || null,
+        duration: moveToData.duration || 2.0,
+        inputControl: moveToData.inputControl || {
+          disableMovement: true,
+          disableRotation: true,
+        },
+        onComplete: moveToData.onComplete || null,
+      });
+    } else {
+      console.warn(
+        `CameraAnimationManager: Cannot play moveTo '${moveToData.id}', no gameManager`
       );
     }
   }

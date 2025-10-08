@@ -19,6 +19,7 @@ export class IdleHelper {
     this.gameManager = gameManager;
     this.inputManager = inputManager;
     this.wasControlEnabled = false; // Track previous control state
+    this.wasCameraAnimating = false; // Track previous camera animation state
 
     this.init();
     this.setupMovementListeners();
@@ -117,13 +118,7 @@ export class IdleHelper {
       return false;
     }
 
-    // Check time since last movement
-    const timeSinceLastMovement = Date.now() - this.lastMovementTime;
-    if (timeSinceLastMovement < this.idleThreshold) {
-      return false;
-    }
-
-    // Check blocking conditions
+    // Check blocking conditions first (including camera animations)
     const isDialogPlaying = this.dialogManager && this.dialogManager.isPlaying;
     const hasPendingDialog =
       this.dialogManager &&
@@ -133,13 +128,23 @@ export class IdleHelper {
       this.cameraAnimationSystem && this.cameraAnimationSystem.isPlaying;
     const isChoiceUIOpen = this.dialogChoiceUI && this.dialogChoiceUI.isVisible;
 
-    // Return true only if no blocking conditions are active
-    return (
-      !isDialogPlaying &&
-      !hasPendingDialog &&
-      !isCameraAnimating &&
-      !isChoiceUIOpen
-    );
+    // Don't allow idle behaviors during any blocking condition (including camera animations)
+    if (
+      isDialogPlaying ||
+      hasPendingDialog ||
+      isCameraAnimating ||
+      isChoiceUIOpen
+    ) {
+      return false;
+    }
+
+    // Check time since last movement
+    const timeSinceLastMovement = Date.now() - this.lastMovementTime;
+    if (timeSinceLastMovement < this.idleThreshold) {
+      return false;
+    }
+
+    return true;
   }
 
   interruptWithFadeOut() {
@@ -200,8 +205,26 @@ export class IdleHelper {
       // Update the previous control state
       this.wasControlEnabled = isControlEnabled;
 
+      // Check if camera animation just ended and reset idle timer
+      const isCameraAnimating =
+        this.cameraAnimationSystem && this.cameraAnimationSystem.isPlaying;
+
+      if (this.wasCameraAnimating && !isCameraAnimating) {
+        // Camera animation just ended - reset idle timer
+        this.lastMovementTime = Date.now();
+        console.log("IdleHelper: Camera animation ended, resetting idle timer");
+      }
+
+      // Update the previous camera animation state
+      this.wasCameraAnimating = isCameraAnimating;
+
       // Don't check idle state if controls haven't been enabled yet
       if (!isControlEnabled || this.lastMovementTime === null) {
+        return;
+      }
+
+      // Don't track idle time while camera animation is playing
+      if (isCameraAnimating) {
         return;
       }
 
@@ -257,13 +280,11 @@ export class IdleHelper {
         this.dialogManager.pendingDialogs &&
         this.dialogManager.pendingDialogs.size > 0;
 
-      // Don't show helper if camera animation is playing
-      const isCameraAnimating =
-        this.cameraAnimationSystem && this.cameraAnimationSystem.isPlaying;
-
       // Don't show helper if dialog choice UI is open
       const isChoiceUIOpen =
         this.dialogChoiceUI && this.dialogChoiceUI.isVisible;
+
+      // Note: isCameraAnimating is already defined above (line 205-206)
 
       if (
         timeSinceLastMovement >= this.idleThreshold &&

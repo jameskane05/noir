@@ -16,6 +16,7 @@
  *   - If criteria matches → video should play
  *   - If criteria doesn't match → video should stop
  * - autoPlay: If true, automatically play when criteria are met (default: false)
+ * - delay: Delay in seconds before playing the video when criteria are met (default: 0)
  * - once: If true, only play once (tracked automatically)
  * - priority: Higher priority videos are checked first (default: 0)
  * - onComplete: Optional function called when video ends, receives gameManager
@@ -48,7 +49,7 @@ export const videos = {
     billboard: true,
     // Play from START_SCREEN onwards
     criteria: {
-      currentState: { $gte: GAME_STATES.START_SCREEN },
+      currentState: { $gte: GAME_STATES.ANSWERED_PHONE },
     },
     autoPlay: true,
     once: false,
@@ -57,17 +58,17 @@ export const videos = {
   [VIDEO_IDS.CAT]: {
     id: VIDEO_IDS.CAT,
     videoPath: "/video/cat.webm",
-    position: [-112.1, -1.4, -120.0], // 3 meters in front of drive-by video
+    position: [-106.1, -6.4, -118.0], // 3 meters in front of drive-by video
     rotation: [0, -Math.PI / 2, 0],
-    scale: [3, 3, 3],
-    loop: true,
+    scale: [2, 2, 2],
+    loop: false,
     muted: true,
     billboard: true,
-    // Play from START_SCREEN onwards
     criteria: {
-      currentState: { $gte: GAME_STATES.START_SCREEN },
+      heardCat: true,
     },
     autoPlay: true,
+    delay: 1.0, // Wait 1 second after heardCat becomes true before playing
     once: false,
     priority: 0,
   },

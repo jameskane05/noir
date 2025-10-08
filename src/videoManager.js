@@ -20,6 +20,7 @@ class VideoManager {
     // Track active video players
     this.videoPlayers = new Map(); // id -> VideoPlayer instance
     this.playedOnce = new Set(); // Track videos that have played once
+    this.pendingDelays = new Map(); // id -> setTimeout handle for delayed playback
 
     // Listen for game state changes
     if (this.gameManager) {
@@ -48,22 +49,51 @@ class VideoManager {
       const player = this.videoPlayers.get(videoId);
       const isPlaying = player && player.isPlaying;
       const hasPlayedOnce = this.playedOnce.has(videoId);
+      const hasPendingDelay = this.pendingDelays.has(videoId);
 
       // If criteria matches and video is not playing
-      if (matchesCriteria && !isPlaying) {
+      if (matchesCriteria && !isPlaying && !hasPendingDelay) {
         // Check once - skip if already played
         if (videoConfig.once && hasPlayedOnce) {
           continue;
         }
 
-        // Auto-play video if configured
+        // Auto-play video if configured (with optional delay)
         if (videoConfig.autoPlay) {
-          this.playVideo(videoId);
+          const delay = videoConfig.delay || 0;
+
+          if (delay > 0) {
+            // Schedule delayed playback
+            const timeoutId = setTimeout(() => {
+              this.pendingDelays.delete(videoId);
+              this.playVideo(videoId);
+            }, delay * 1000); // Convert to milliseconds
+
+            this.pendingDelays.set(videoId, timeoutId);
+            console.log(
+              `VideoManager: Scheduled video "${videoId}" to play in ${delay}s`
+            );
+          } else {
+            // Play immediately
+            this.playVideo(videoId);
+          }
         }
       }
-      // If criteria doesn't match and video is playing, stop it
-      else if (!matchesCriteria && isPlaying) {
-        this.stopVideo(videoId);
+      // If criteria doesn't match, stop video and cancel any pending delays
+      else if (!matchesCriteria) {
+        // Cancel pending delay if exists
+        if (hasPendingDelay) {
+          clearTimeout(this.pendingDelays.get(videoId));
+          this.pendingDelays.delete(videoId);
+          console.log(
+            `VideoManager: Cancelled delayed playback for "${videoId}"`
+          );
+        }
+
+        // Stop video if playing
+        if (isPlaying) {
+          this.stopVideo(videoId);
+        }
       }
     }
   }
@@ -143,6 +173,11 @@ class VideoManager {
    * Clean up all videos
    */
   destroy() {
+    // Clear all pending delays
+    this.pendingDelays.forEach((timeoutId) => clearTimeout(timeoutId));
+    this.pendingDelays.clear();
+
+    // Destroy all video players
     this.videoPlayers.forEach((player) => player.destroy());
     this.videoPlayers.clear();
     this.playedOnce.clear();

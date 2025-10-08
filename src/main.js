@@ -96,19 +96,11 @@ const gameManager = new GameManager();
 // Floor top at Y=0.1, character center at Y=0.9 (rests on ground)
 // Camera at top of capsule: Y=0.9+0.8=1.7 (1.6m off ground)
 // Use debug spawn position if available, otherwise default
-const debugSpawnPos = gameManager.getDebugSpawnPosition();
-console.log("Debug spawn position:", debugSpawnPos);
-console.log(
-  "Game manager state.playerPosition:",
-  gameManager.state.playerPosition
-);
-console.log("Is debug mode:", gameManager.isDebugMode);
-const spawnPos = debugSpawnPos || {
+const spawnPos = gameManager.getDebugSpawnPosition() || {
   x: -20.412734985351562,
   y: 0.9, // Character center height to rest on floor (floor top at Y=0.1, capsule bottom 0.8 below center)
   z: -175.3896026611328,
 };
-console.log("Final spawn position:", spawnPos);
 const character = physicsManager.createCharacter(spawnPos, {
   x: 0,
   y: -120,

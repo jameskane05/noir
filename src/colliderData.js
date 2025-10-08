@@ -34,17 +34,17 @@
  *   - data: { action: "show|hide", element: "element-name" }
  * - "state": Set game state
  *   - data: { key: "state-key", value: any }
- * - "camera-lookat": Trigger camera look-at
+ * - "camera-lookat": Trigger camera look-at (DEPRECATED - use cameraAnimationData.js instead)
  *   - data: { position: {x, y, z}, duration: 2.0, restoreControl: true, enableZoom: false }
  *   - OR with targetMesh: { targetMesh: {objectId: "object-id", childName: "MeshName"}, duration: 2.0, restoreControl: true, enableZoom: true }
  *   - Optional zoomOptions: { zoomFactor: 1.5, minAperture: 0.15, maxAperture: 0.35, transitionStart: 0.8, transitionDuration: 2.0, holdDuration: 2.0 }
  * - "camera-animation": Play a camera animation
  *   - data: { animation: "path/to/animation.json", onComplete: optional-callback }
- * - "move-to": Move character to position and rotation
- *   - data: { position: {x, y, z}, rotation: {yaw: radians, pitch: radians}, duration: 2.0, inputControl: {disableMovement: true, disableRotation: false} }
- *   - Input is NOT automatically restored. Use onComplete callback or later event to call characterController.enableMovement() / enableRotation() / enableInput()
  * - "custom": Emit custom event for game-specific logic
  *   - data: { eventName: "name", payload: {...} }
+ *
+ * Note: Camera lookats and character moveTos should be defined in cameraAnimationData.js
+ * with state-based criteria, not as collider events.
  */
 
 import { GAME_STATES } from "./gameData.js";
@@ -101,30 +101,33 @@ export const colliders = [
     dimensions: { x: 1, y: 1.5, z: 1 }, // Small box around phone
     onEnter: [
       {
-        type: "move-to",
-        data: {
-          position: { x: 8.05, y: 0.4, z: 41.65 }, // Center of booth (y: 0.9 for character center)
-          rotation: {
-            yaw: Math.PI / 2, // Face the phone (90 degrees)
-            pitch: 0,
-          },
-          duration: 1.5,
-          inputControl: {
-            disableMovement: true, // Disable movement
-            disableRotation: false, // Allow rotation (player can look around)
-          },
-          // Note: Movement stays disabled until manually restored (e.g., after phone interaction)
-        },
-      },
-      {
         type: "state",
         data: { key: "currentState", value: GAME_STATES.ANSWERED_PHONE },
       },
+      // Note: Character moveTo is handled by cameraAnimationData.js (phoneBoothMoveTo)
     ],
     onExit: [],
     once: true,
     enabled: true,
     criteria: { currentState: GAME_STATES.PHONE_BOOTH_RINGING }, // Only activates after phone starts ringing
+  },
+
+  {
+    id: "trigger-new-location",
+    type: "box",
+    position: { x: -19.7, y: 0.4, z: -125.7 },
+    rotation: { x: 0, y: 0, z: 0 },
+    dimensions: { x: 2.5, y: 1.0, z: 2.5 }, // 5x2x5 meter box (half-extents)
+    onEnter: [
+      // Add your events here
+      {
+        type: "state",
+        data: { key: "heardCat", value: true },
+      },
+    ],
+    onExit: [],
+    once: false,
+    enabled: true,
   },
 
   // Add your colliders here...
