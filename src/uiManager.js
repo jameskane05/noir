@@ -6,7 +6,12 @@
  * - Handles UI stack (what's on top)
  * - Integrates with GameManager
  * - Prevents UI conflicts and overlap issues
+ * - Instantiates and manages UI components
  */
+
+import { IdleHelper } from "./ui/idleHelper.js";
+import { FullscreenButton } from "./ui/fullscreenButton.js";
+import { uiElements } from "./uiData.js";
 
 export class UIManager {
   constructor(gameManager = null) {
@@ -35,8 +40,48 @@ export class UIManager {
       introScreen: null,
       optionsMenu: null,
       dialogManager: null,
+      idleHelper: null,
+      fullscreenButton: null,
       // Add more as needed
     };
+  }
+
+  /**
+   * Initialize UI components that depend on other managers
+   * Call this after all managers are created
+   * @param {Object} dependencies - Required manager dependencies
+   */
+  initializeComponents(dependencies = {}) {
+    const {
+      dialogManager,
+      cameraAnimationManager,
+      dialogChoiceUI,
+      inputManager,
+      characterController,
+    } = dependencies;
+
+    // Initialize idle helper (shows WASD controls when player is idle)
+    this.components.idleHelper = new IdleHelper(
+      dialogManager,
+      cameraAnimationManager,
+      dialogChoiceUI,
+      this.gameManager,
+      inputManager
+    );
+
+    // Wire up idle helper to character controller for glance system
+    if (characterController) {
+      characterController.setIdleHelper(this.components.idleHelper);
+    }
+
+    // Initialize fullscreen button (visible by default)
+    this.components.fullscreenButton = new FullscreenButton({
+      uiManager: this,
+      gameManager: this.gameManager,
+      config: uiElements.FULLSCREEN_BUTTON,
+    });
+
+    console.log("UIManager: Components initialized");
   }
 
   /**

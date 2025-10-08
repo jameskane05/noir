@@ -9,14 +9,13 @@
  * - scale: [x, y, z] scale multipliers
  * - loop: Whether the video should loop
  * - billboard: Whether the video should always face the camera
- * - criteria: Optional object with key-value pairs that must match game state
+ * - criteria: Optional object with key-value pairs that must match game state for video to play
  *   - Simple equality: { currentState: GAME_STATES.INTRO }
  *   - Comparison operators: { currentState: { $gte: GAME_STATES.INTRO, $lt: GAME_STATES.DRIVE_BY } }
  *   - Operators: $eq, $ne, $gt, $gte, $lt, $lte, $in, $nin
- * - autoPlay: If true, automatically play when conditions are met (default: false)
- * - playOn: Array of game states OR criteria object where this video should play
- *   - Array format: [STATE1, STATE2]
- *   - Criteria format: { currentState: { $gte: STATE } }
+ *   - If criteria matches → video should play
+ *   - If criteria doesn't match → video should stop
+ * - autoPlay: If true, automatically play when criteria are met (default: false)
  * - once: If true, only play once (tracked automatically)
  * - priority: Higher priority videos are checked first (default: 0)
  * - onComplete: Optional function called when video ends, receives gameManager
@@ -27,7 +26,7 @@
  */
 
 import { GAME_STATES } from "./gameData.js";
-import { checkPlayOn, checkCriteria } from "./criteriaHelper.js";
+import { checkCriteria } from "./criteriaHelper.js";
 
 /**
  * Video IDs - Constants for type safety
@@ -40,14 +39,15 @@ export const videos = {
   [VIDEO_IDS.DRIVE_BY]: {
     id: VIDEO_IDS.DRIVE_BY,
     videoPath: "/video/1007-bw-2.webm",
-    position: [10, 1, 60],
+    position: [-32.82, 1, 53.86],
     rotation: [0, -Math.PI / 2, 0],
     scale: [3, 3, 3],
     loop: true,
+    muted: true,
     billboard: true,
-    // Play from TITLE_SEQUENCE_COMPLETE onwards
-    playOn: {
-      currentState: { $gte: GAME_STATES.TITLE_SEQUENCE_COMPLETE },
+    // Play from START_SCREEN onwards
+    criteria: {
+      currentState: { $gte: GAME_STATES.START_SCREEN },
     },
     autoPlay: true,
     once: false,
@@ -62,25 +62,19 @@ export const videos = {
  */
 export function getVideosForState(gameState) {
   return Object.values(videos).filter((video) => {
-    // Check if video should play on current state (supports array or criteria object)
-    if (video.playOn) {
-      const shouldPlay = checkPlayOn(gameState, video.playOn);
-      console.log(
-        `VideoData: Checking video "${video.id}" - currentState: ${gameState.currentState}, playOn:`,
-        video.playOn,
-        `shouldPlay: ${shouldPlay}`
-      );
-
-      if (shouldPlay) {
-        // Check criteria if specified (supports operators like $gte, $lt, etc.)
-        if (video.criteria) {
-          return checkCriteria(gameState, video.criteria);
-        }
-
-        return true;
-      }
+    // Check if video has criteria
+    if (!video.criteria) {
+      return false;
     }
 
-    return false;
+    // Check if criteria match current state
+    const shouldPlay = checkCriteria(gameState, video.criteria);
+    console.log(
+      `VideoData: Checking video "${video.id}" - currentState: ${gameState.currentState}, criteria:`,
+      video.criteria,
+      `shouldPlay: ${shouldPlay}`
+    );
+
+    return shouldPlay;
   });
 }

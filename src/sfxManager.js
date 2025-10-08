@@ -1,5 +1,5 @@
 import { Howl, Howler } from "howler";
-import { checkPlayOn, checkStopOn } from "./criteriaHelper.js";
+import { checkCriteria } from "./criteriaHelper.js";
 
 /**
  * SFXManager - Manages all sound effects with master volume control
@@ -18,9 +18,78 @@ class SFXManager {
     this.sounds = new Map(); // Map of id -> {howl, baseVolume}
     this.dialogManager = null; // Will be set externally
     this.lightManager = options.lightManager || null; // LightManager for reactive lights
+    this.gameManager = null;
+
+    // Track sounds that have been played once (for playOnce functionality)
+    this.playedSounds = new Set();
 
     // Set global Howler volume (we'll manage individual sounds separately)
     Howler.volume(1.0);
+  }
+
+  /**
+   * Set game manager and register event listeners
+   * @param {GameManager} gameManager - The game manager instance
+   */
+  setGameManager(gameManager) {
+    this.gameManager = gameManager;
+
+    // State change handler
+    const handleStateChange = (newState, oldState) => {
+      // Check all sounds with criteria and play/stop based on current state
+      this.updateSoundsForState(newState);
+    };
+
+    // Listen for state changes
+    this.gameManager.on("state:changed", handleStateChange);
+
+    // Handle initial state
+    const currentState = this.gameManager.getState();
+    handleStateChange(currentState, null);
+
+    console.log(
+      "SFXManager: Event listeners registered and initial state handled"
+    );
+  }
+
+  /**
+   * Update all sounds based on current game state
+   * Checks criteria for each sound and plays/stops accordingly
+   * @param {Object} state - Current game state
+   */
+  updateSoundsForState(state) {
+    if (!state || !this._data) return;
+
+    for (const [id] of this.sounds) {
+      const def = this._data[id];
+      if (!def || !def.criteria) continue;
+
+      const matchesCriteria = checkCriteria(state, def.criteria);
+      const isPlaying = this.isPlaying(id);
+      const hasPlayedOnce = this.playedSounds.has(id);
+
+      // If criteria matches and sound is not playing
+      if (matchesCriteria && !isPlaying) {
+        // Check playOnce - skip if already played
+        if (def.playOnce && hasPlayedOnce) {
+          continue;
+        }
+
+        // Play the sound
+        try {
+          this.play(id);
+          if (def.playOnce) {
+            this.playedSounds.add(id);
+          }
+        } catch (e) {
+          // Ignore autoplay errors, user gesture will trigger later
+        }
+      }
+      // If criteria doesn't match and sound is playing, stop it
+      else if (!matchesCriteria && isPlaying) {
+        this.stop(id);
+      }
+    }
   }
 
   /**
@@ -117,49 +186,6 @@ class SFXManager {
         );
       }
     });
-  }
-
-  /**
-   * Attempt to play sounds based on current state.
-   * Supports both array format and criteria object format for playOn/stopOn.
-   * @param {Object} state - Current game state (expects state.currentState)
-   */
-  autoplayForState(state) {
-    if (!state || !state.currentState) return;
-
-    for (const [id] of this.sounds) {
-      const def = (this._data && this._data[id]) || null;
-      if (!def || !def.playOn) continue;
-
-      const shouldAutoPlay =
-        checkPlayOn(state, def.playOn) &&
-        !(def.stopOn && checkStopOn(state, def.stopOn));
-      if (shouldAutoPlay && !this.isPlaying(id)) {
-        try {
-          this.play(id);
-        } catch (e) {
-          // Ignore autoplay errors, user gesture will trigger later
-        }
-      }
-    }
-  }
-
-  /**
-   * Stop sounds that should stop on entering a given state.
-   * Supports both array format and criteria object format for stopOn.
-   * @param {Object} state - Current game state
-   */
-  stopForState(state) {
-    if (!state || !state.currentState) return;
-
-    for (const [id] of this.sounds) {
-      const def = (this._data && this._data[id]) || null;
-      if (!def || !def.stopOn) continue;
-
-      if (checkStopOn(state, def.stopOn)) {
-        this.stop(id);
-      }
-    }
   }
 
   /**

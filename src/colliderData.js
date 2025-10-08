@@ -77,23 +77,6 @@ export const colliders = [
     dimensions: { x: 6, y: 1.5, z: 1.5 }, // 3x3x3 box
     onEnter: [
       {
-        type: "camera-lookat",
-        data: {
-          position: { x: 7, y: 2, z: 42 }, // Look at phonebooth (center/eye level)
-          duration: 1.5,
-          restoreControl: true,
-          enableZoom: true, // Enable dramatic zoom/DoF when looking at phone booth
-          zoomOptions: {
-            zoomFactor: 2.0, // More dramatic 2x zoom
-            minAperture: 0.2, // Stronger DoF effect
-            maxAperture: 0.4,
-            transitionStart: 0.6, // Start zooming earlier (60% of look-at)
-            transitionDuration: 2.5, // Slower, more dramatic transition
-            holdDuration: 3.0, // Hold the zoom longer for dramatic effect
-          },
-        },
-      },
-      {
         type: "state",
         data: { key: "currentState", value: GAME_STATES.PHONE_BOOTH_RINGING },
       },
@@ -101,7 +84,6 @@ export const colliders = [
     onExit: [],
     once: true, // Triggers once then cleans itself up
     enabled: true,
-    // criteria: { titleComplete: true }, // Simple key-value check
     criteria: {
       currentState: {
         $gte: GAME_STATES.TITLE_SEQUENCE_COMPLETE,

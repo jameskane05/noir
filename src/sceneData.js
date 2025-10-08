@@ -22,13 +22,14 @@
  *   - id: Unique identifier for this animation
  *   - clipName: Name of animation clip in GLTF (null = use first clip)
  *   - loop: Whether to loop the animation
- *   - playOn: Array of states OR criteria object that trigger playback
- *     - Array format: [STATE1, STATE2]
- *     - Criteria format: { currentState: { $gte: STATE } }
- *   - stopOn: Array of states OR criteria object that stop playback
- *     - Array format: [STATE1, STATE2]
- *     - Criteria format: { currentState: { $gte: STATE } }
- *   - autoPlay: If true, automatically play when state conditions are met
+ *   - criteria: Optional object with key-value pairs that must match game state for animation to play
+ *     - Simple equality: { currentState: GAME_STATES.ANSWERED_PHONE }
+ *     - Comparison operators: { currentState: { $gte: GAME_STATES.INTRO, $lt: GAME_STATES.DRIVE_BY } }
+ *     - Operators: $eq, $ne, $gt, $gte, $lt, $lte, $in, $nin
+ *     - If criteria matches and not playing → play it
+ *     - If criteria doesn't match and playing → stop it
+ *   - autoPlay: If true, automatically play when criteria are met
+ *   - playOnce: If true, only play once per game session
  *   - timeScale: Playback speed (1.0 = normal)
  *
  * Usage:
@@ -36,7 +37,7 @@
  */
 
 import { GAME_STATES } from "./gameData.js";
-import { checkCriteria, checkPlayOn, checkStopOn } from "./criteriaHelper.js";
+import { checkCriteria } from "./criteriaHelper.js";
 
 export const sceneObjects = {
   exterior: {
@@ -71,9 +72,14 @@ export const sceneObjects = {
         id: "phonebooth-ring", // Identifier for this animation
         clipName: null, // null = use first animation clip from GLTF
         loop: false, // Whether the animation should loop
-        playOn: [GAME_STATES.ANSWERED_PHONE], // Game states that trigger playback
-        stopOn: [GAME_STATES.DIALOG_CHOICE_1], // Stop when leaving phone interaction
-        autoPlay: true, // Automatically play when state conditions are met
+        criteria: {
+          currentState: {
+            $gte: GAME_STATES.ANSWERED_PHONE,
+            $lt: GAME_STATES.DIALOG_CHOICE_1,
+          },
+        },
+        autoPlay: true, // Automatically play when criteria are met
+        playOnce: true, // Only play once per session
         timeScale: 1.0, // Playback speed (1.0 = normal)
       },
     ],

@@ -24,9 +24,6 @@ import { StartScreen } from "./startScreen.js";
 import { GAME_STATES } from "./gameData.js";
 import CameraAnimationManager from "./cameraAnimationManager.js";
 import cameraAnimations from "./cameraAnimationData.js";
-import { IdleHelper } from "./ui/idleHelper.js";
-import { FullscreenButton } from "./ui/fullscreenButton.js";
-import { uiElements } from "./uiData.js";
 import "./styles/optionsMenu.css";
 
 const scene = new THREE.Scene();
@@ -237,6 +234,20 @@ await gameManager.initialize({
   camera: camera,
 });
 
+// Set up event listeners for managers
+characterController.setGameManager(gameManager);
+musicManager.setGameManager(gameManager);
+sfxManager.setGameManager(gameManager);
+
+// Initialize UI components (idleHelper, fullscreenButton)
+uiManager.initializeComponents({
+  dialogManager,
+  cameraAnimationManager,
+  dialogChoiceUI,
+  inputManager,
+  characterController,
+});
+
 // Listen for character controller enable/disable to show/hide touch controls
 gameManager.on("character-controller:enabled", () => {
   inputManager.showTouchControls();
@@ -257,28 +268,6 @@ const colliderManager = new ColliderManager(
 
 // Make collider manager globally accessible for debugging
 window.colliderManager = colliderManager;
-
-// Initialize idle helper (shows WASD controls when player is idle)
-const idleHelper = new IdleHelper(
-  dialogManager,
-  cameraAnimationManager,
-  dialogChoiceUI,
-  gameManager,
-  inputManager
-);
-
-// Wire up idle helper to character controller for glance system
-characterController.setIdleHelper(idleHelper);
-
-// Initialize fullscreen button (visible by default)
-const fullscreenButton = new FullscreenButton({
-  uiManager: uiManager,
-  gameManager: gameManager,
-  config: uiElements.FULLSCREEN_BUTTON,
-});
-
-// Register fullscreen button with UI manager
-uiManager.registerComponent("fullscreenButton", fullscreenButton);
 
 // Global escape key handler for options menu (only works when game is active, not during intro)
 // Track ESC key press time to distinguish between quick press (menu) and held (exit fullscreen)
@@ -322,7 +311,7 @@ renderer.setAnimationLoop(function animate(time) {
     startScreen.checkIntroStart(null, sfxManager, gameManager);
   }
 
-  // Don't update game logic if options menu is open or start screen is active
+  // Don't update most game logic if options menu is open or start screen is active
   if (!optionsMenu.isOpen && (!startScreen || !startScreen.isActive)) {
     // Update input manager (gamepad state)
     inputManager.update(dt);
@@ -343,10 +332,7 @@ renderer.setAnimationLoop(function animate(time) {
       colliderManager.update(character);
     }
 
-    // Update video manager (billboard to camera, frame updates)
-    if (gameManager.videoManager) {
-      gameManager.videoManager.update(dt);
-    }
+    // (moved below) Video manager is updated unconditionally so videos render during START_SCREEN too
 
     // Update Howler listener position for spatial audio
     Howler.pos(camera.position.x, camera.position.y, camera.position.z);
@@ -362,6 +348,11 @@ renderer.setAnimationLoop(function animate(time) {
       camera.up.y,
       camera.up.z
     );
+  }
+
+  // Always update video manager (billboarding and texture updates need to run during START_SCREEN)
+  if (gameManager.videoManager) {
+    gameManager.videoManager.update(dt);
   }
 
   // Update title sequence (pass dt in seconds)

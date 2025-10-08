@@ -81,6 +81,35 @@ class MusicManager {
     this.pauseMusic = this.pauseMusic.bind(this);
     this.resumeMusic = this.resumeMusic.bind(this);
     this.setVolume = this.setVolume.bind(this);
+
+    this.gameManager = null;
+  }
+
+  /**
+   * Set game manager and register event listeners
+   * @param {GameManager} gameManager - The game manager instance
+   */
+  setGameManager(gameManager) {
+    this.gameManager = gameManager;
+
+    // Import getMusicForState
+    import("./musicData.js").then(({ getMusicForState }) => {
+      // Listen for state changes
+      this.gameManager.on("state:changed", (newState, oldState) => {
+        const track = getMusicForState(newState);
+        if (!track) return;
+
+        // Only change music if it's different from current track
+        if (this.getCurrentTrack() !== track.id) {
+          console.log(
+            `MusicManager: Changing music to "${track.id}" (${track.description})`
+          );
+          this.changeMusic(track.id, track.fadeTime || 0);
+        }
+      });
+
+      console.log("MusicManager: Event listeners registered");
+    });
   }
 
   /**

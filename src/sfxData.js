@@ -8,12 +8,14 @@
  * - loop: Whether the sound should loop, optional, defaults to false
  * - preload: Whether to preload this sound (default: true)
  * - rate: Playback speed (1.0 = normal), optional
- * - playOn: Array of states OR criteria object when sound should play
- *   - Array format: [STATE1, STATE2]
- *   - Criteria format: { currentState: { $gte: STATE } }
- * - stopOn: Array of states OR criteria object when sound should stop
- *   - Array format: [STATE1, STATE2]
- *   - Criteria format: { currentState: { $gte: STATE } }
+ * - criteria: Optional object with key-value pairs that must match game state for sound to play
+ *   - Simple equality: { currentState: GAME_STATES.PHONE_BOOTH_RINGING }
+ *   - Comparison operators: { currentState: { $gte: GAME_STATES.INTRO, $lt: GAME_STATES.DRIVE_BY } }
+ *   - Multiple conditions: { currentState: GAME_STATES.INTRO, cityAmbiance: true }
+ *   - Operators: $eq, $ne, $gt, $gte, $lt, $lte, $in, $nin
+ *   - If criteria matches and sound is not playing → play it
+ *   - If criteria doesn't match and sound is playing → stop it
+ * - playOnce: If true, sound only plays once per game session (for one-shots triggered by state)
  *
  * For 3D spatial audio, also include:
  * - spatial: true to indicate this is a 3D positioned sound
@@ -73,8 +75,12 @@ export const sfxSounds = {
       maxDistance: 100,
     },
     preload: true,
-    playOn: [GAME_STATES.PHONE_BOOTH_RINGING],
-    stopOn: [GAME_STATES.ANSWERED_PHONE],
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.PHONE_BOOTH_RINGING,
+        $lt: GAME_STATES.ANSWERED_PHONE,
+      },
+    },
     // Audio-reactive light configuration
     reactiveLight: {
       enabled: true,
@@ -109,8 +115,7 @@ export const sfxSounds = {
     loop: true,
     spatial: false,
     preload: true,
-    playOn: [GAME_STATES.START_SCREEN],
-    stopOn: [],
+    criteria: { currentState: { $gte: GAME_STATES.START_SCREEN } }, // Play when state.cityAmbiance is true
   },
 
   // One-shot effects
@@ -129,7 +134,8 @@ export const sfxSounds = {
       maxDistance: 15,
     },
     preload: true,
-    playOn: [GAME_STATES.ANSWERED_PHONE],
+    criteria: { currentState: GAME_STATES.ANSWERED_PHONE },
+    playOnce: true, // One-shot sound triggered by state
   },
 
   "engine-and-gun": {
@@ -139,7 +145,8 @@ export const sfxSounds = {
     loop: false,
     spatial: false, // Non-spatial for dramatic effect
     preload: true,
-    playOn: [GAME_STATES.DRIVE_BY],
+    criteria: { currentState: GAME_STATES.DRIVE_BY },
+    playOnce: true, // One-shot sound triggered by state
   },
 
   // Typewriter sounds for dialog choices

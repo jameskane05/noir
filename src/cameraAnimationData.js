@@ -1,20 +1,38 @@
 /**
  * Camera Animation Data Structure
  *
- * Defines camera animations and their playback conditions based on game state.
+ * Defines camera animations and lookats, triggered by game state changes.
  *
- * Each animation contains:
+ * Common properties:
  * - id: Unique identifier
- * - path: Path to the animation JSON file
+ * - type: "animation" or "lookat"
  * - description: Human-readable description
  * - criteria: Optional object with key-value pairs that must match game state
  *   - Simple equality: { currentState: GAME_STATES.INTRO }
  *   - Comparison operators: { currentState: { $gte: GAME_STATES.INTRO, $lt: GAME_STATES.PHONE_BOOTH_RINGING } }
  *   - Operators: $eq, $ne, $gt, $gte, $lt, $lte, $in, $nin
  * - priority: Higher priority animations are checked first (default: 0)
- * - playOnce: If true, animation only plays once per game session (default: false)
+ * - playOnce: If true, only plays once per game session (default: false)
+ *
+ * Type-specific properties:
+ *
+ * For type "animation":
+ * - path: Path to the animation JSON file
  * - syncController: If true, sync character controller yaw/pitch to final camera pose (default: true)
  * - restoreInput: If true, restore input controls when complete (default: true)
+ *
+ * For type "lookat":
+ * - position: {x, y, z} world position to look at
+ * - duration: Duration of the look-at in seconds (default: 2.0)
+ * - restoreControl: If true, restore input controls when complete (default: true)
+ * - enableZoom: If true, enable zoom/DoF effect (default: false)
+ * - zoomOptions: Optional zoom configuration
+ *   - zoomFactor: Camera zoom multiplier (e.g., 2.0 for 2x zoom)
+ *   - minAperture: DoF effect strength at peak
+ *   - maxAperture: DoF effect strength at rest
+ *   - transitionStart: When to start zoom (0-1, fraction of duration)
+ *   - transitionDuration: How long zoom transition takes in seconds
+ *   - holdDuration: How long to hold zoom before returning
  *
  * Usage:
  * import { cameraAnimations, getCameraAnimationForState } from './cameraAnimationData.js';
@@ -24,8 +42,30 @@ import { GAME_STATES } from "./gameData.js";
 import { checkCriteria } from "./criteriaHelper.js";
 
 export const cameraAnimations = {
+  phoneBoothLookat: {
+    id: "phoneBoothLookat",
+    type: "lookat",
+    description: "Look at phone booth when it starts ringing",
+    position: { x: 7, y: 2, z: 42 }, // Look at phonebooth (center/eye level)
+    duration: 1.5,
+    restoreControl: true,
+    enableZoom: true, // Enable dramatic zoom/DoF when looking at phone booth
+    zoomOptions: {
+      zoomFactor: 2.0, // More dramatic 2x zoom
+      minAperture: 0.2, // Stronger DoF effect
+      maxAperture: 0.4,
+      transitionStart: 0.6, // Start zooming earlier (60% of look-at)
+      transitionDuration: 2.5, // Slower, more dramatic transition
+      holdDuration: 3.0, // Hold the zoom longer for dramatic effect
+    },
+    criteria: { currentState: GAME_STATES.PHONE_BOOTH_RINGING },
+    priority: 100,
+    playOnce: true,
+  },
+
   lookAndJump: {
     id: "lookAndJump",
+    type: "animation",
     path: "/json/look-and-jump.json",
     description: "Camera animation for drive-by sequence",
     criteria: { currentState: GAME_STATES.DRIVE_BY },

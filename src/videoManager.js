@@ -1,5 +1,6 @@
 import * as THREE from "three";
-import { videos, getVideosForState } from "./videoData.js";
+import { videos } from "./videoData.js";
+import { checkCriteria } from "./criteriaHelper.js";
 
 /**
  * VideoManager - Manages video playback with state-based control
@@ -23,28 +24,48 @@ class VideoManager {
     // Listen for game state changes
     if (this.gameManager) {
       this.gameManager.on("state:changed", (newState, oldState) => {
-        this.handleStateChange(newState, oldState);
+        this.updateVideosForState(newState);
       });
+
+      // Handle initial state
+      const currentState = this.gameManager.getState();
+      this.updateVideosForState(currentState);
     }
   }
 
   /**
-   * Handle game state changes
+   * Update all videos based on current game state
+   * Checks criteria for each video and plays/stops accordingly
+   * @param {Object} state - Current game state
    */
-  handleStateChange(newState, oldState) {
-    const matchingVideos = getVideosForState(newState);
+  updateVideosForState(state) {
+    // Check all videos defined in videoData
+    for (const [videoId, videoConfig] of Object.entries(videos)) {
+      // Check if video has criteria
+      if (!videoConfig.criteria) continue;
 
-    matchingVideos.forEach((videoConfig) => {
-      // Skip if video should only play once and already played
-      if (videoConfig.once && this.playedOnce.has(videoConfig.id)) {
-        return;
-      }
+      const matchesCriteria = checkCriteria(state, videoConfig.criteria);
+      const player = this.videoPlayers.get(videoId);
+      const isPlaying = player && player.isPlaying;
+      const hasPlayedOnce = this.playedOnce.has(videoId);
 
-      // Auto-play video if configured
-      if (videoConfig.autoPlay) {
-        this.playVideo(videoConfig.id);
+      // If criteria matches and video is not playing
+      if (matchesCriteria && !isPlaying) {
+        // Check once - skip if already played
+        if (videoConfig.once && hasPlayedOnce) {
+          continue;
+        }
+
+        // Auto-play video if configured
+        if (videoConfig.autoPlay) {
+          this.playVideo(videoId);
+        }
       }
-    });
+      // If criteria doesn't match and video is playing, stop it
+      else if (!matchesCriteria && isPlaying) {
+        this.stopVideo(videoId);
+      }
+    }
   }
 
   /**
@@ -211,6 +232,13 @@ class VideoPlayer {
     this.videoMaterial = material;
     this.videoMesh.name = "video-player";
 
+    // Store initial rotation for billboarding offset
+    this.initialRotation = {
+      x: this.config.rotation[0],
+      y: this.config.rotation[1],
+      z: this.config.rotation[2],
+    };
+
     // Add to scene
     if (this.scene) {
       this.scene.add(this.videoMesh);
@@ -238,6 +266,22 @@ class VideoPlayer {
         }
 
         this.canvasReady = true;
+
+        // If video is already playing, draw the first frame immediately
+        // (This handles the case where play() was called before loadeddata)
+        if (
+          this.isPlaying &&
+          this.video.readyState >= this.video.HAVE_CURRENT_DATA
+        ) {
+          this.canvasContext.clearRect(
+            0,
+            0,
+            this.canvas.width,
+            this.canvas.height
+          );
+          this.canvasContext.drawImage(this.video, 0, 0);
+          this.videoTexture.needsUpdate = true;
+        }
       }
     });
 
@@ -282,7 +326,11 @@ class VideoPlayer {
     if (!this.video) return;
 
     try {
-      this.video.currentTime = 0;
+      // Only reset to beginning if video has ended
+      if (this.video.ended) {
+        this.video.currentTime = 0;
+      }
+
       await this.video.play();
     } catch (error) {
       console.error("VideoPlayer: Failed to play video", error);

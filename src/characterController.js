@@ -133,6 +133,86 @@ class CharacterController {
   }
 
   /**
+   * Set game manager and register event listeners
+   * @param {GameManager} gameManager - The game manager instance
+   */
+  setGameManager(gameManager) {
+    this.gameManager = gameManager;
+
+    // Listen for camera:lookat events
+    this.gameManager.on("camera:lookat", (data) => {
+      // Check if control is enabled
+      if (!this.gameManager.isControlEnabled()) return;
+
+      const targetPos = new THREE.Vector3(
+        data.position.x,
+        data.position.y,
+        data.position.z
+      );
+      const onComplete = data.restoreControl
+        ? () => {
+            this.inputDisabled = false;
+            console.log(`Camera look-at complete (${data.colliderId})`);
+          }
+        : null;
+
+      const enableZoom =
+        data.enableZoom !== undefined ? data.enableZoom : false;
+      const zoomOptions = data.zoomOptions || {};
+      // If restoreControl is false, don't disable input (let moveTo or other system manage it)
+      const disableInput = data.restoreControl !== false;
+
+      this.lookAt(
+        targetPos,
+        data.duration,
+        onComplete,
+        enableZoom,
+        zoomOptions,
+        disableInput
+      );
+    });
+
+    // Listen for character:moveto events
+    this.gameManager.on("character:moveto", (data) => {
+      // Check if control is enabled
+      if (!this.gameManager.isControlEnabled()) return;
+
+      const targetPos = new THREE.Vector3(
+        data.position.x,
+        data.position.y,
+        data.position.z
+      );
+
+      // Parse rotation if provided
+      let targetRotation = null;
+      if (data.rotation) {
+        targetRotation = {
+          yaw: data.rotation.yaw,
+          pitch: data.rotation.pitch || 0,
+        };
+      }
+
+      // Parse input control settings (what to disable: movement, rotation, or both)
+      const inputControl = data.inputControl || {
+        disableMovement: true,
+        disableRotation: true,
+      };
+
+      const onComplete = data.onComplete || null;
+
+      this.moveTo(
+        targetPos,
+        targetRotation,
+        data.duration,
+        onComplete,
+        inputControl
+      );
+    });
+
+    console.log("CharacterController: Event listeners registered");
+  }
+
+  /**
    * Enable breathing (call when character controller becomes active)
    */
   enableBreathing() {

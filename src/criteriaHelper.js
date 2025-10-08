@@ -102,54 +102,7 @@ export function checkCriteria(gameState, criteria) {
   return true;
 }
 
-/**
- * Check if game state matches playOn conditions
- * Supports both array format and criteria object format
- * @param {Object} gameState - Current game state
- * @param {Array|Object} playOn - Array of states or criteria object
- * @returns {boolean}
- */
-export function checkPlayOn(gameState, playOn) {
-  if (!playOn) return false;
-
-  // Array format: [STATE1, STATE2] - check if currentState is in array
-  if (Array.isArray(playOn)) {
-    return playOn.includes(gameState.currentState);
-  }
-
-  // Object format: { currentState: { $gte: STATE } } - use criteria check
-  if (typeof playOn === "object") {
-    return checkCriteria(gameState, playOn);
-  }
-
-  return false;
-}
-
-/**
- * Check if game state matches stopOn conditions
- * @param {Object} gameState - Current game state
- * @param {Array|Object} stopOn - Array of states or criteria object
- * @returns {boolean}
- */
-export function checkStopOn(gameState, stopOn) {
-  if (!stopOn) return false;
-
-  // Array format
-  if (Array.isArray(stopOn)) {
-    return stopOn.includes(gameState.currentState);
-  }
-
-  // Object format
-  if (typeof stopOn === "object") {
-    return checkCriteria(gameState, stopOn);
-  }
-
-  return false;
-}
-
 export default {
   matchesCriteria,
   checkCriteria,
-  checkPlayOn,
-  checkStopOn,
 };

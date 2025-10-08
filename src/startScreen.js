@@ -71,7 +71,7 @@ export class StartScreen {
       justify-content: center;
       gap: 20px;
       pointer-events: none;
-      background: rgba(0, 0, 0, 0.3);
+      background: rgba(0, 0, 0, 0.0);
     `;
 
     // Create tagline

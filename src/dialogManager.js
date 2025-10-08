@@ -84,6 +84,69 @@ class DialogManager {
       "dialog:complete": [],
       "dialog:caption": [],
     };
+
+    // Set up state change listener if gameManager is provided
+    if (this.gameManager) {
+      this.setupStateListener();
+    }
+  }
+
+  /**
+   * Set game manager and register event listeners
+   * @param {GameManager} gameManager - The game manager instance
+   */
+  setGameManager(gameManager) {
+    this.gameManager = gameManager;
+    this.setupStateListener();
+  }
+
+  /**
+   * Set up state change listener for auto-playing dialogs
+   */
+  setupStateListener() {
+    if (!this.gameManager) return;
+
+    // Track played dialogs for "once" functionality
+    this.playedDialogs = new Set();
+
+    // Import getDialogsForState
+    import("./dialogData.js").then(({ getDialogsForState }) => {
+      // Listen for state changes
+      this.gameManager.on("state:changed", (newState, oldState) => {
+        const matchingDialogs = getDialogsForState(
+          newState,
+          this.playedDialogs
+        );
+
+        // If there are matching dialogs for the new state
+        if (matchingDialogs.length > 0) {
+          const dialog = matchingDialogs[0];
+
+          // Cancel any pending dialogs if we have a higher priority one
+          if (this.hasDialogsPending()) {
+            console.log(
+              `DialogManager: Canceling pending dialogs for new dialog "${dialog.id}"`
+            );
+            this.cancelAllDelayedDialogs();
+          }
+
+          console.log(`DialogManager: Auto-playing dialog "${dialog.id}"`);
+
+          // Track that this dialog has been played
+          this.playedDialogs.add(dialog.id);
+
+          // Emit event for tracking
+          this.gameManager.emit("dialog:trigger", dialog.id, dialog);
+
+          // Play the dialog
+          this.playDialog(dialog, (completedDialog) => {
+            this.gameManager.emit("dialog:finished", completedDialog);
+          });
+        }
+      });
+
+      console.log("DialogManager: Event listeners registered");
+    });
   }
 
   /**

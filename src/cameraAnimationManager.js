@@ -49,9 +49,35 @@ class CameraAnimationManager {
       this.gameManager.on("state:changed", (newState, oldState) => {
         this.onStateChanged(newState);
       });
+
+      // Listen for camera:animation events
+      this.gameManager.on("camera:animation", async (data) => {
+        const { animation, onComplete } = data;
+        console.log(`CameraAnimationManager: Playing animation: ${animation}`);
+
+        // Load animation if not already loaded
+        if (!this.getAnimationNames().includes(animation)) {
+          const ok = await this.loadAnimation(animation, animation);
+          if (!ok) {
+            console.warn(
+              `CameraAnimationManager: Failed to load animation: ${animation}`
+            );
+            if (onComplete) onComplete(false);
+            return;
+          }
+        }
+
+        // Play animation
+        this.play(animation, () => {
+          console.log(
+            `CameraAnimationManager: Animation complete: ${animation}`
+          );
+          if (onComplete) onComplete(true);
+        });
+      });
     }
 
-    console.log("CameraAnimationManager: Initialized");
+    console.log("CameraAnimationManager: Initialized with event listeners");
   }
 
   /**
@@ -61,12 +87,20 @@ class CameraAnimationManager {
    */
   async loadAnimationsFromData(animationData) {
     const animations = Object.values(animationData);
-    const loadPromises = animations.map((anim) =>
+    // Only load JSON animations, skip lookats
+    const animationsToLoad = animations.filter(
+      (anim) => anim.type !== "lookat" && anim.path
+    );
+    const loadPromises = animationsToLoad.map((anim) =>
       this.loadAnimation(anim.id, anim.path)
     );
     await Promise.all(loadPromises);
     console.log(
-      `CameraAnimationManager: Loaded ${animations.length} animations from data`
+      `CameraAnimationManager: Loaded ${
+        animationsToLoad.length
+      } animations from data (${
+        animations.length - animationsToLoad.length
+      } lookats)`
     );
   }
 
@@ -120,6 +154,13 @@ class CameraAnimationManager {
    * @returns {boolean} Success
    */
   playFromData(animData) {
+    // Handle lookat type
+    if (animData.type === "lookat") {
+      this.playLookat(animData);
+      return true;
+    }
+
+    // Handle animation type (default)
     const success = this.play(
       animData.id,
       () => {
@@ -132,6 +173,35 @@ class CameraAnimationManager {
     );
 
     return success;
+  }
+
+  /**
+   * Play a lookat from data config
+   * @param {Object} lookAtData - Lookat data from cameraAnimationData.js
+   */
+  playLookat(lookAtData) {
+    console.log(`CameraAnimationManager: Playing lookat '${lookAtData.id}'`);
+
+    // Mark as played if playOnce
+    if (lookAtData.playOnce) {
+      this.playedAnimations.add(lookAtData.id);
+    }
+
+    // Emit lookat event through gameManager
+    if (this.gameManager) {
+      this.gameManager.emit("camera:lookat", {
+        position: lookAtData.position,
+        duration: lookAtData.duration || 2.0,
+        restoreControl: lookAtData.restoreControl !== false,
+        enableZoom: lookAtData.enableZoom || false,
+        zoomOptions: lookAtData.zoomOptions || {},
+        colliderId: `camera-data-${lookAtData.id}`,
+      });
+    } else {
+      console.warn(
+        `CameraAnimationManager: Cannot play lookat '${lookAtData.id}', no gameManager`
+      );
+    }
   }
 
   /**

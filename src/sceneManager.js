@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { SplatMesh } from "@sparkjsdev/spark";
-import { checkPlayOn, checkStopOn } from "./criteriaHelper.js";
+import { checkCriteria } from "./criteriaHelper.js";
 
 /**
  * SceneManager - Manages scene objects (splats, GLTF models, etc.)
@@ -45,6 +45,7 @@ class SceneManager {
     this.animationMixers = new Map(); // Map of objectId -> THREE.AnimationMixer
     this.animationActions = new Map(); // Map of animationId -> THREE.AnimationAction
     this.animationData = new Map(); // Map of animationId -> animation data config
+    this.playedAnimations = new Set(); // Track animations that have been played once (for playOnce)
 
     // Event listeners
     this.eventListeners = {};
@@ -577,7 +578,7 @@ class SceneManager {
 
   /**
    * Update animations based on game state
-   * Supports both array format and criteria object format for playOn/stopOn.
+   * Uses criteria to determine whether animations should play or stop
    * @param {Object} gameState - Current game state
    */
   updateAnimationsForState(gameState) {
@@ -586,14 +587,29 @@ class SceneManager {
     for (const [animationId, config] of this.animationData) {
       if (!config.autoPlay) continue;
 
-      const shouldPlay = config.playOn && checkPlayOn(gameState, config.playOn);
-      const shouldStop = config.stopOn && checkStopOn(gameState, config.stopOn);
-      const isPlaying = this.isAnimationPlaying(animationId);
+      // Check if animation has criteria
+      if (!config.criteria) continue;
 
-      if (shouldStop && isPlaying) {
-        this.stopAnimation(animationId);
-      } else if (shouldPlay && !isPlaying && !shouldStop) {
+      const matchesCriteria = checkCriteria(gameState, config.criteria);
+      const isPlaying = this.isAnimationPlaying(animationId);
+      const hasPlayedOnce = this.playedAnimations.has(animationId);
+
+      // If criteria matches and animation is not playing
+      if (matchesCriteria && !isPlaying) {
+        // Check playOnce - skip if already played
+        if (config.playOnce && hasPlayedOnce) {
+          continue;
+        }
+
+        // Play the animation
         this.playAnimation(animationId);
+        if (config.playOnce) {
+          this.playedAnimations.add(animationId);
+        }
+      }
+      // If criteria doesn't match and animation is playing, stop it
+      else if (!matchesCriteria && isPlaying) {
+        this.stopAnimation(animationId);
       }
     }
   }

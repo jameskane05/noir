@@ -1,8 +1,4 @@
-import * as THREE from "three";
-import { getMusicForState } from "./musicData.js";
-import { getDialogsForState } from "./dialogData.js";
 import { getSceneObjectsForState } from "./sceneData.js";
-import { getVideosForState } from "./videoData.js";
 import { startScreen, GAME_STATES } from "./gameData.js";
 import { getDebugSpawnState, isDebugSpawnActive } from "./debugSpawner.js";
 import PhoneBooth from "./content/phonebooth.js";
@@ -35,9 +31,6 @@ class GameManager {
     this.uiManager = null;
     this.sceneManager = null;
     this.phoneBooth = null;
-
-    // Track played dialogs for "once" functionality
-    this.playedDialogs = new Set();
 
     // Track loaded scene objects
     this.loadedScenes = new Set();
@@ -126,125 +119,17 @@ class GameManager {
       camera: this.camera,
     });
 
-    // Attempt initial autoplay/stop based on starting state
-    // Ensures startScreen sounds (e.g., city ambiance) begin immediately when possible
-    if (this.sfxManager) {
-      this.sfxManager.stopForState(this.state);
-      this.sfxManager.autoplayForState(this.state);
-    }
-
-    // Ensure initial state drives music, dialogs, and videos immediately
-    this.updateMusicForState();
-    this.updateDialogsForState();
-    this.updateVideosForState();
+    // Note: Music, dialogs, SFX, and videos are now handled by their respective managers via state:changed events
+    // They handle initial state when their listeners are set up
   }
 
   /**
-   * Set up internal event handlers that connect managers
+   * Set up internal event handlers for game-level logic
+   * Note: Individual managers (CharacterController, CameraAnimationManager,
+   * MusicManager, DialogManager, SFXManager) now handle their own events directly
    */
   setupEventHandlers() {
-    // Camera animation
-    this.on("camera:animation", async (data) => {
-      const { animation, onComplete } = data;
-      console.log(`Playing camera animation: ${animation}`);
-
-      // Load animation if not already loaded
-      if (
-        !this.cameraAnimationManager.getAnimationNames().includes(animation)
-      ) {
-        const ok = await this.cameraAnimationManager.loadAnimation(
-          animation,
-          animation
-        );
-        if (!ok) {
-          console.warn(`Failed to load camera animation: ${animation}`);
-          if (onComplete) onComplete(false);
-          return;
-        }
-      }
-
-      // Play animation
-      this.cameraAnimationManager.play(animation, () => {
-        console.log(`Camera animation complete: ${animation}`);
-        if (onComplete) onComplete(true);
-      });
-    });
-
-    // Camera look-at
-    this.on("camera:lookat", (data) => {
-      if (!this.isControlEnabled()) return;
-
-      const targetPos = new THREE.Vector3(
-        data.position.x,
-        data.position.y,
-        data.position.z
-      );
-      const onComplete = data.restoreControl
-        ? () => {
-            this.characterController.inputDisabled = false;
-            console.log(`Camera look-at complete (${data.colliderId})`);
-          }
-        : null;
-
-      const enableZoom =
-        data.enableZoom !== undefined ? data.enableZoom : false;
-      const zoomOptions = data.zoomOptions || {};
-      // If restoreControl is false, don't disable input (let moveTo or other system manage it)
-      const disableInput = data.restoreControl !== false;
-
-      this.characterController.lookAt(
-        targetPos,
-        data.duration,
-        onComplete,
-        enableZoom,
-        zoomOptions,
-        disableInput
-      );
-    });
-
-    // Character move-to
-    this.on("character:moveto", (data) => {
-      if (!this.isControlEnabled()) return;
-
-      const targetPos = new THREE.Vector3(
-        data.position.x,
-        data.position.y,
-        data.position.z
-      );
-
-      // Parse rotation if provided
-      let targetRotation = null;
-      if (data.rotation) {
-        targetRotation = {
-          yaw: data.rotation.yaw,
-          pitch: data.rotation.pitch || 0,
-        };
-      }
-
-      // Parse input control settings (what to disable: movement, rotation, or both)
-      const inputControl = data.inputControl || {
-        disableMovement: true,
-        disableRotation: true,
-      };
-
-      const onComplete = data.onComplete || null;
-
-      this.characterController.moveTo(
-        targetPos,
-        targetRotation,
-        data.duration,
-        onComplete,
-        inputControl
-      );
-    });
-
-    // Try to autoplay required sounds on load (may fail due to browser policy)
-    // We'll also trigger them again on first interaction via StartScreen
-    // Start screen desired state: rach2 + city ambiance
-    if (this.state.currentState === GAME_STATES.START_SCREEN) {
-      this.updateMusicForState();
-      this.updateSFXForState();
-    }
+    // No game-level event handlers needed - all handled by individual managers
   }
 
   /**
@@ -270,24 +155,6 @@ class GameManager {
 
     this.emit("state:changed", this.state, oldState);
 
-    // Update music based on new state
-    this.updateMusicForState();
-
-    // Update dialogs based on new state
-    this.updateDialogsForState();
-
-    // Update videos based on new state
-    this.updateVideosForState();
-
-    // Update SFX based on new state
-    this.updateSFXForState();
-
-    // SFX autoplay/stop rules based on high-level state
-    if (this.sfxManager) {
-      this.sfxManager.stopForState(this.state);
-      this.sfxManager.autoplayForState(this.state);
-    }
-
     // Update scene animations based on new state
     if (this.sceneManager) {
       this.sceneManager.updateAnimationsForState(this.state);
@@ -303,117 +170,6 @@ class GameManager {
    */
   getState() {
     return { ...this.state };
-  }
-
-  /**
-   * Trigger a dialog sequence
-   * @param {string} dialogId - ID of the dialog sequence
-   * @param {Object} dialogData - Dialog data object
-   * @param {Function} onComplete - Optional completion callback
-   */
-  playDialog(dialogId, dialogData, onComplete = null) {
-    if (!this.dialogManager) {
-      console.warn("GameManager: No DialogManager initialized");
-      return;
-    }
-
-    // Track that this dialog has been played
-    this.playedDialogs.add(dialogId);
-
-    this.emit("dialog:trigger", dialogId, dialogData);
-    this.dialogManager.playDialog(dialogData, (completedDialog) => {
-      this.emit("dialog:finished", completedDialog);
-      if (onComplete) onComplete(completedDialog);
-    });
-  }
-
-  /**
-   * Change music
-   * @param {string} trackName - Name of the music track
-   * @param {number} fadeTime - Fade duration in seconds
-   */
-  changeMusic(trackName, fadeTime = 2.0) {
-    if (!this.musicManager) {
-      console.warn("GameManager: No MusicManager initialized");
-      return;
-    }
-
-    this.musicManager.changeMusic(trackName, fadeTime);
-    this.emit("music:changed", trackName);
-  }
-
-  /**
-   * Update music based on current game state
-   */
-  updateMusicForState() {
-    if (!this.musicManager) return;
-
-    const track = getMusicForState(this.state);
-    if (!track) return;
-
-    // Only change music if it's different from current track
-    if (this.musicManager.getCurrentTrack() !== track.id) {
-      console.log(
-        `GameManager: Changing music to "${track.id}" (${track.description})`
-      );
-      this.musicManager.changeMusic(track.id, track.fadeTime || 0);
-    }
-  }
-
-  /**
-   * Update dialogs based on current game state
-   * Triggers auto-play dialogs whose conditions are met
-   */
-  updateDialogsForState() {
-    if (!this.dialogManager) return;
-
-    const matchingDialogs = getDialogsForState(this.state, this.playedDialogs);
-
-    // If there are matching dialogs for the new state
-    if (matchingDialogs.length > 0) {
-      const dialog = matchingDialogs[0];
-
-      // Cancel any pending dialogs if we have a higher priority one
-      if (this.dialogManager.hasDialogsPending()) {
-        console.log(
-          `GameManager: Canceling pending dialogs for new dialog "${dialog.id}"`
-        );
-        this.dialogManager.cancelAllDelayedDialogs();
-      }
-
-      console.log(`GameManager: Auto-playing dialog "${dialog.id}"`);
-      this.playDialog(dialog.id, dialog);
-    }
-  }
-
-  /**
-   * Update SFX based on current game state
-   */
-  updateSFXForState() {
-    if (!this.sfxManager) return;
-
-    // City ambiance controlled by state.cityAmbiance
-    if (this.state.cityAmbiance === true) {
-      if (
-        !this.sfxManager.isPlaying ||
-        !this.sfxManager.isPlaying("city-ambiance")
-      ) {
-        this.sfxManager.play("city-ambiance");
-      }
-    } else if (this.state.cityAmbiance === false) {
-      this.sfxManager.stop("city-ambiance");
-    }
-  }
-
-  /**
-   * Update videos based on current game state
-   * Triggers auto-play videos whose conditions are met
-   */
-  updateVideosForState() {
-    if (!this.videoManager) return;
-
-    // Delegate to videoManager's state change handler
-    this.videoManager.handleStateChange(this.state, this.state);
   }
 
   /**
