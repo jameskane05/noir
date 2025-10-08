@@ -70,7 +70,7 @@ export class StartScreen {
       align-items: center;
       justify-content: center;
       gap: 20px;
-      pointer-events: all;
+      pointer-events: none;
       background: rgba(0, 0, 0, 0.3);
     `;
 
@@ -104,6 +104,7 @@ export class StartScreen {
       text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.9);
       box-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
       min-width: 400px;
+      pointer-events: all;
     `;
 
     // Hover effects for start button
@@ -140,6 +141,7 @@ export class StartScreen {
       text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.9);
       box-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
       min-width: 400px;
+      pointer-events: all;
     `;
 
     // Hover effects for options button

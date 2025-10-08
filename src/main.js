@@ -25,6 +25,8 @@ import { GAME_STATES } from "./gameData.js";
 import CameraAnimationManager from "./cameraAnimationManager.js";
 import cameraAnimations from "./cameraAnimationData.js";
 import { IdleHelper } from "./ui/idleHelper.js";
+import { FullscreenButton } from "./ui/fullscreenButton.js";
+import { uiElements } from "./uiData.js";
 import "./styles/optionsMenu.css";
 
 const scene = new THREE.Scene();
@@ -267,6 +269,16 @@ const idleHelper = new IdleHelper(
 
 // Wire up idle helper to character controller for glance system
 characterController.setIdleHelper(idleHelper);
+
+// Initialize fullscreen button (visible by default)
+const fullscreenButton = new FullscreenButton({
+  uiManager: uiManager,
+  gameManager: gameManager,
+  config: uiElements.FULLSCREEN_BUTTON,
+});
+
+// Register fullscreen button with UI manager
+uiManager.registerComponent("fullscreenButton", fullscreenButton);
 
 // Global escape key handler for options menu (only works when game is active, not during intro)
 // Track ESC key press time to distinguish between quick press (menu) and held (exit fullscreen)

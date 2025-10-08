@@ -46,6 +46,9 @@ export const startScreen = {
 
   // Audio ambience (drives SFX via gameManager.updateSFXForState)
   cityAmbiance: false,
+
+  // Display state
+  isFullscreen: false, // When true, the app is in fullscreen mode
 };
 
 /**
@@ -60,6 +63,7 @@ export const stateDescriptions = {
   controlEnabled: "Enables character controller updates and input.",
   titleSequenceComplete: "Set true when title sequence completes.",
   cityAmbiance: "When true, city ambiance SFX should be playing.",
+  isFullscreen: "True when app is in fullscreen mode.",
 };
 
 export default startScreen;

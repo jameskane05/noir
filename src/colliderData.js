@@ -102,7 +102,12 @@ export const colliders = [
     once: true, // Triggers once then cleans itself up
     enabled: true,
     // criteria: { titleComplete: true }, // Simple key-value check
-    criteria: { currentState: GAME_STATES.INTRO },
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.TITLE_SEQUENCE_COMPLETE,
+        $lt: GAME_STATES.PHONE_BOOTH_RINGING,
+      },
+    },
   },
 
   // Phonebooth interaction - only available after hearing the phone ring
