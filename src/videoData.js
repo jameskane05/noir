@@ -67,10 +67,9 @@ export const videos = {
       heardCat: true,
     },
     autoPlay: true,
-    delay: 0.5, // Wait 1 second after heardCat becomes true before playing
+    delay: 0.5,
     once: false,
     priority: 0,
-    gizmo: true,
   },
 };
 

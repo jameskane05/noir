@@ -136,9 +136,6 @@ class VideoManager {
       // Register with gizmo manager if gizmo flag is set
       if (videoConfig.gizmo) {
         if (this.gizmoManager && player.videoMesh) {
-          console.log(
-            `VideoManager: Registering "${videoId}" with gizmo and selecting it...`
-          );
           this.gizmoManager.registerObject(player.videoMesh, videoId, "video");
           // Attach immediately so the helper is visible without click
           if (typeof this.gizmoManager.selectObjectById === "function") {
@@ -147,6 +144,18 @@ class VideoManager {
         } else if (!this.gizmoManager) {
           // Store for later registration
           player._needsGizmoRegistration = true;
+        }
+
+        // Set global gizmo-in-data flag on gameManager if any video declares gizmo
+        try {
+          if (
+            this.gameManager &&
+            typeof this.gameManager.setState === "function"
+          ) {
+            this.gameManager.setState({ hasGizmoInData: true });
+          }
+        } catch (e) {
+          console.error("VideoManager: Failed to set hasGizmoInData:", e);
         }
       }
 

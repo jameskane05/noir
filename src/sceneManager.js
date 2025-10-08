@@ -178,7 +178,6 @@ class SceneManager {
 
       // Register with gizmo manager if gizmo flag is set
       if (objectData.gizmo && this.gizmoManager && object) {
-        console.log(`SceneManager: Registering "${id}" with gizmo...`);
         this.gizmoManager.registerObject(object, id, type);
       }
 

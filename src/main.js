@@ -296,6 +296,12 @@ window.gameManager = gameManager;
 
 // Standardize global effects via managers (sceneManager/videoManager set game state)
 
+// Force gizmo detection from definitions regardless of state
+gizmoManager.applyGlobalBlocksFromDefinitions({
+  sceneDefs: sceneObjects,
+  videoDefs: videos,
+});
+
 // Allow InputManager to detect gizmo hover/drag to enable drag-to-look when not over gizmo
 if (typeof inputManager.setGizmoProbe === "function") {
   inputManager.setGizmoProbe(() => gizmoManager.isPointerOverGizmo());
@@ -304,10 +310,6 @@ if (typeof inputManager.setGizmoProbe === "function") {
 // Standardize: let gizmo manager own global side-effects from now on
 gizmoManager.setIntegration(uiManager?.components?.idleHelper, inputManager);
 
-// Re-apply gizmo registration and blocks whenever state changes (in case objects spawn later)
-gameManager.on("state:changed", () => {
-  // Managers update hasGizmoInData as they load; no extra registration needed here
-});
 gizmoManager.applyPointerLockBlockIfNeeded(inputManager, sceneManager);
 
 // Global escape key handler for options menu (only works when game is active, not during intro)

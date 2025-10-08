@@ -135,6 +135,12 @@ export class IdleHelper {
     if (this.globalDisable) {
       return false;
     }
+    // Also block if game state declares gizmo presence in data (pre-instantiation)
+    const currentState = this.gameManager?.getState?.();
+    const hasGizmoInData = currentState?.hasGizmoInData === true;
+    if (hasGizmoInData) {
+      return false;
+    }
     // Check if controls are enabled
     const isControlEnabled =
       this.gameManager && this.gameManager.isControlEnabled();
@@ -248,6 +254,17 @@ export class IdleHelper {
 
       // Update the previous camera animation state
       this.wasCameraAnimating = isCameraAnimating;
+
+      // If globally disabled or gizmo flag is set in game state, force hide and skip
+      const currentState = this.gameManager?.getState?.();
+      const hasGizmoInData = currentState?.hasGizmoInData === true;
+      if (this.globalDisable || hasGizmoInData) {
+        if (this.isAnimating) {
+          this.stopAnimation();
+          this.helperElement.style.opacity = "0";
+        }
+        return;
+      }
 
       // Don't check idle state if controls haven't been enabled yet
       if (!isControlEnabled || this.lastMovementTime === null) {
