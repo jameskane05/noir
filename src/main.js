@@ -4,6 +4,7 @@ import { Howl, Howler } from "howler";
 //import { LightingSystem } from "/src/lights.js";
 import PhysicsManager from "./physicsManager.js";
 import CharacterController from "./characterController.js";
+import InputManager from "./inputManager.js";
 import MusicManager from "./musicManager.js";
 import SFXManager from "./sfxManager.js";
 import LightManager from "./lightManager.js";
@@ -21,7 +22,8 @@ import { createAnimatedTextSplat } from "./textSplat.js";
 import { TitleSequence } from "./titleSequence.js";
 import { StartScreen } from "./startScreen.js";
 import { GAME_STATES } from "./gameData.js";
-import CameraAnimationSystem from "./cameraAnimationSystem.js";
+import CameraAnimationManager from "./cameraAnimationManager.js";
+import cameraAnimations from "./cameraAnimationData.js";
 import { IdleHelper } from "./ui/idleHelper.js";
 import "./styles/optionsMenu.css";
 
@@ -60,6 +62,9 @@ scene.add(spark);
 
 // Initialize scene manager (objects will be loaded by gameManager based on state)
 const sceneManager = new SceneManager(scene);
+
+// Make scene manager globally accessible for mesh lookups
+window.sceneManager = sceneManager;
 
 // Initialize light manager
 const lightManager = new LightManager(scene);
@@ -110,11 +115,15 @@ const sfxManager = new SFXManager({
   lightManager: lightManager,
 });
 
+// Initialize input manager (handles keyboard, mouse, and gamepad)
+const inputManager = new InputManager(renderer.domElement);
+
 // Initialize character controller (will be disabled until intro completes)
 const characterController = new CharacterController(
   character,
   camera,
   renderer,
+  inputManager,
   sfxManager,
   spark // Pass spark renderer for DoF control
 );
@@ -124,17 +133,22 @@ import { sfxSounds } from "./sfxData.js";
 sfxManager._data = sfxSounds; // Keep a reference to definitions for state-based autoplay/stop
 sfxManager.registerSoundsFromData(sfxSounds);
 
-// Make character controller globally accessible for options menu
+// Make character controller and input manager globally accessible for options menu
 window.characterController = characterController;
+window.inputManager = inputManager;
 
-// Initialize camera animation system
-const cameraAnimationSystem = new CameraAnimationSystem(
+// Initialize camera animation manager now that all dependencies exist
+const cameraAnimationManager = new CameraAnimationManager(
   camera,
-  characterController
+  characterController,
+  gameManager
 );
 
+// Load camera animations from data
+cameraAnimationManager.loadAnimationsFromData(cameraAnimations);
+
 // Make it globally accessible for debugging/scripting
-window.cameraAnimationSystem = cameraAnimationSystem;
+window.cameraAnimationManager = cameraAnimationManager;
 
 // Initialize lighting system
 //const lightingSystem = new LightingSystem(scene);
@@ -213,7 +227,7 @@ await gameManager.initialize({
   sfxManager: sfxManager,
   uiManager: uiManager,
   characterController: characterController,
-  cameraAnimationSystem: cameraAnimationSystem,
+  cameraAnimationManager: cameraAnimationManager,
   sceneManager: sceneManager,
   lightManager: lightManager,
   physicsManager: physicsManager,
@@ -221,12 +235,22 @@ await gameManager.initialize({
   camera: camera,
 });
 
-// Initialize collider manager with scene reference for cleanup
+// Listen for character controller enable/disable to show/hide touch controls
+gameManager.on("character-controller:enabled", () => {
+  inputManager.showTouchControls();
+});
+
+gameManager.on("character-controller:disabled", () => {
+  inputManager.hideTouchControls();
+});
+
+// Initialize collider manager with scene and sceneManager references
 const colliderManager = new ColliderManager(
   physicsManager,
   gameManager,
   colliders,
-  scene
+  scene,
+  sceneManager
 );
 
 // Make collider manager globally accessible for debugging
@@ -235,9 +259,10 @@ window.colliderManager = colliderManager;
 // Initialize idle helper (shows WASD controls when player is idle)
 const idleHelper = new IdleHelper(
   dialogManager,
-  cameraAnimationSystem,
+  cameraAnimationManager,
   dialogChoiceUI,
-  gameManager
+  gameManager,
+  inputManager
 );
 
 // Wire up idle helper to character controller for glance system
@@ -287,11 +312,14 @@ renderer.setAnimationLoop(function animate(time) {
 
   // Don't update game logic if options menu is open or start screen is active
   if (!optionsMenu.isOpen && (!startScreen || !startScreen.isActive)) {
-    // Update camera animation system
-    cameraAnimationSystem.update(dt);
+    // Update input manager (gamepad state)
+    inputManager.update(dt);
+
+    // Update camera animation manager
+    cameraAnimationManager.update(dt);
 
     // Update character controller (handles input, physics, camera, headbob)
-    if (gameManager.isControlEnabled() && !cameraAnimationSystem.playing) {
+    if (gameManager.isControlEnabled() && !cameraAnimationManager.playing) {
       characterController.update(dt);
     }
 

@@ -92,7 +92,7 @@ class GameManager {
     this.sfxManager = managers.sfxManager;
     this.uiManager = managers.uiManager;
     this.characterController = managers.characterController;
-    this.cameraAnimationSystem = managers.cameraAnimationSystem;
+    this.cameraAnimationManager = managers.cameraAnimationManager;
     this.sceneManager = managers.sceneManager;
     this.lightManager = managers.lightManager;
     this.camera = managers.camera; // Store camera reference
@@ -149,8 +149,10 @@ class GameManager {
       console.log(`Playing camera animation: ${animation}`);
 
       // Load animation if not already loaded
-      if (!this.cameraAnimationSystem.getAnimationNames().includes(animation)) {
-        const ok = await this.cameraAnimationSystem.loadAnimation(
+      if (
+        !this.cameraAnimationManager.getAnimationNames().includes(animation)
+      ) {
+        const ok = await this.cameraAnimationManager.loadAnimation(
           animation,
           animation
         );
@@ -162,7 +164,7 @@ class GameManager {
       }
 
       // Play animation
-      this.cameraAnimationSystem.play(animation, () => {
+      this.cameraAnimationManager.play(animation, () => {
         console.log(`Camera animation complete: ${animation}`);
         if (onComplete) onComplete(true);
       });
@@ -184,7 +186,56 @@ class GameManager {
           }
         : null;
 
-      this.characterController.lookAt(targetPos, data.duration, onComplete);
+      const enableZoom =
+        data.enableZoom !== undefined ? data.enableZoom : false;
+      const zoomOptions = data.zoomOptions || {};
+      // If restoreControl is false, don't disable input (let moveTo or other system manage it)
+      const disableInput = data.restoreControl !== false;
+
+      this.characterController.lookAt(
+        targetPos,
+        data.duration,
+        onComplete,
+        enableZoom,
+        zoomOptions,
+        disableInput
+      );
+    });
+
+    // Character move-to
+    this.on("character:moveto", (data) => {
+      if (!this.isControlEnabled()) return;
+
+      const targetPos = new THREE.Vector3(
+        data.position.x,
+        data.position.y,
+        data.position.z
+      );
+
+      // Parse rotation if provided
+      let targetRotation = null;
+      if (data.rotation) {
+        targetRotation = {
+          yaw: data.rotation.yaw,
+          pitch: data.rotation.pitch || 0,
+        };
+      }
+
+      // Parse input control settings (what to disable: movement, rotation, or both)
+      const inputControl = data.inputControl || {
+        disableMovement: true,
+        disableRotation: true,
+      };
+
+      const onComplete = data.onComplete || null;
+
+      this.characterController.moveTo(
+        targetPos,
+        targetRotation,
+        data.duration,
+        onComplete,
+        inputControl
+      );
     });
 
     // Try to autoplay required sounds on load (may fail due to browser policy)

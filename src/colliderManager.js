@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { checkCriteria } from "./criteriaHelper.js";
 
 /**
  * ColliderManager - Manages trigger colliders and intersection detection
@@ -12,10 +13,17 @@ import * as THREE from "three";
  */
 
 class ColliderManager {
-  constructor(physicsManager, gameManager, colliderData = [], scene = null) {
+  constructor(
+    physicsManager,
+    gameManager,
+    colliderData = [],
+    scene = null,
+    sceneManager = null
+  ) {
     this.physicsManager = physicsManager;
     this.gameManager = gameManager;
     this.scene = scene;
+    this.sceneManager = sceneManager;
     this.colliders = [];
     this.debugMeshes = new Map(); // Map of collider id -> debug mesh
     this.activeColliders = new Set(); // Track which colliders the character is currently inside
@@ -163,28 +171,9 @@ class ColliderManager {
   checkActivationConditions(data) {
     const gameState = this.gameManager.getState();
 
-    // Check criteria (simple key-value matching)
+    // Check criteria (supports operators like $gte, $lt, etc.)
     if (data.criteria) {
-      for (const [key, value] of Object.entries(data.criteria)) {
-        if (gameState[key] !== value) {
-          return false;
-        }
-      }
-    }
-
-    // Check activationCondition (custom function)
-    if (data.activationCondition) {
-      if (typeof data.activationCondition === "function") {
-        try {
-          return data.activationCondition(gameState);
-        } catch (error) {
-          console.warn(
-            `ColliderManager: Error in activationCondition for collider:`,
-            error
-          );
-          return false;
-        }
-      }
+      return checkCriteria(gameState, data.criteria);
     }
 
     return true;
@@ -240,6 +229,10 @@ class ColliderManager {
         this.handleCameraAnimationEvent(data, colliderId);
         break;
 
+      case "move-to":
+        this.handleMoveToEvent(data, colliderId);
+        break;
+
       default:
         console.warn(`ColliderManager: Unknown event type "${type}"`);
     }
@@ -265,13 +258,67 @@ class ColliderManager {
    * Handle camera look-at event
    */
   handleCameraLookAtEvent(data, colliderId) {
-    const { position, duration = 2.0, restoreControl = true } = data;
+    const {
+      position,
+      targetMesh,
+      duration = 2.0,
+      restoreControl = true,
+      enableZoom = false,
+      zoomOptions = {},
+    } = data;
+
+    let targetPosition = position;
+
+    // If targetMesh is specified, look up the mesh and get its world position
+    if (targetMesh && this.sceneManager) {
+      const { objectId, childName } = targetMesh;
+      const childMesh = this.sceneManager.findChildByName(objectId, childName);
+
+      if (childMesh) {
+        // Get world position of the mesh
+        const worldPos = new THREE.Vector3();
+        childMesh.getWorldPosition(worldPos);
+        targetPosition = {
+          x: worldPos.x,
+          y: worldPos.y,
+          z: worldPos.z,
+        };
+        console.log(
+          `ColliderManager: Looking at mesh "${childName}" in "${objectId}" at (${worldPos.x.toFixed(
+            2
+          )}, ${worldPos.y.toFixed(2)}, ${worldPos.z.toFixed(2)})`
+        );
+      } else {
+        console.warn(
+          `ColliderManager: Could not find mesh "${childName}" in "${objectId}"`
+        );
+        // List available children to help debug
+        const sceneObj = this.sceneManager.getObject(objectId);
+        if (sceneObj) {
+          const childNames = [];
+          sceneObj.traverse((child) => {
+            if (child.name) childNames.push(child.name);
+          });
+          console.log(`Available children in "${objectId}":`, childNames);
+        }
+      }
+    }
+
+    // Safety check: ensure we have a valid position before emitting
+    if (!targetPosition) {
+      console.error(
+        `ColliderManager: No valid target position for camera-lookat (colliderId: ${colliderId})`
+      );
+      return;
+    }
 
     // Emit event for character controller to handle
     this.gameManager.emit("camera:lookat", {
-      position,
+      position: targetPosition,
       duration,
       restoreControl,
+      enableZoom,
+      zoomOptions,
       colliderId,
     });
   }
@@ -286,6 +333,29 @@ class ColliderManager {
     this.gameManager.emit("camera:animation", {
       animation,
       onComplete,
+      colliderId,
+    });
+  }
+
+  /**
+   * Handle move-to event (move character to position)
+   */
+  handleMoveToEvent(data, colliderId) {
+    const {
+      position,
+      rotation,
+      duration = 2.0,
+      restoreControl = true,
+      inputControl,
+    } = data;
+
+    // Emit event for character controller to handle
+    this.gameManager.emit("character:moveto", {
+      position,
+      rotation,
+      duration,
+      restoreControl,
+      inputControl, // Pass through input control settings
       colliderId,
     });
   }

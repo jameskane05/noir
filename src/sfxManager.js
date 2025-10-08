@@ -1,4 +1,5 @@
 import { Howl, Howler } from "howler";
+import { checkPlayOn, checkStopOn } from "./criteriaHelper.js";
 
 /**
  * SFXManager - Manages all sound effects with master volume control
@@ -120,21 +121,19 @@ class SFXManager {
 
   /**
    * Attempt to play sounds based on current state.
+   * Supports both array format and criteria object format for playOn/stopOn.
    * @param {Object} state - Current game state (expects state.currentState)
    */
   autoplayForState(state) {
     if (!state || !state.currentState) return;
-    const current = state.currentState;
-    const matchesToken = (token) => token === current || state[token] === true;
 
     for (const [id] of this.sounds) {
       const def = (this._data && this._data[id]) || null;
-      if (!def || !Array.isArray(def.playOn) || def.playOn.length === 0)
-        continue;
+      if (!def || !def.playOn) continue;
 
       const shouldAutoPlay =
-        def.playOn.some(matchesToken) &&
-        !(Array.isArray(def.stopOn) && def.stopOn.some(matchesToken));
+        checkPlayOn(state, def.playOn) &&
+        !(def.stopOn && checkStopOn(state, def.stopOn));
       if (shouldAutoPlay && !this.isPlaying(id)) {
         try {
           this.play(id);
@@ -147,19 +146,17 @@ class SFXManager {
 
   /**
    * Stop sounds that should stop on entering a given state.
+   * Supports both array format and criteria object format for stopOn.
    * @param {Object} state - Current game state
    */
   stopForState(state) {
     if (!state || !state.currentState) return;
-    const current = state.currentState;
-    const matchesToken = (token) => token === current || state[token] === true;
 
     for (const [id] of this.sounds) {
       const def = (this._data && this._data[id]) || null;
-      if (!def || !Array.isArray(def.stopOn) || def.stopOn.length === 0)
-        continue;
+      if (!def || !def.stopOn) continue;
 
-      if (def.stopOn.some(matchesToken)) {
+      if (checkStopOn(state, def.stopOn)) {
         this.stop(id);
       }
     }

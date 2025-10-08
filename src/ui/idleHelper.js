@@ -3,7 +3,8 @@ export class IdleHelper {
     dialogManager = null,
     cameraAnimationSystem = null,
     dialogChoiceUI = null,
-    gameManager = null
+    gameManager = null,
+    inputManager = null
   ) {
     this.helperElement = null;
     this.lastMovementTime = null; // Don't start tracking until controls are enabled
@@ -16,6 +17,7 @@ export class IdleHelper {
     this.cameraAnimationSystem = cameraAnimationSystem;
     this.dialogChoiceUI = dialogChoiceUI;
     this.gameManager = gameManager;
+    this.inputManager = inputManager;
     this.wasControlEnabled = false; // Track previous control state
 
     this.init();
@@ -175,7 +177,7 @@ export class IdleHelper {
   }
 
   startIdleCheck() {
-    // Check every second if user is idle
+    // Check frequently if user is idle (100ms for responsive gamepad detection)
     setInterval(() => {
       // Check if character controller is enabled
       const isControlEnabled =
@@ -201,6 +203,46 @@ export class IdleHelper {
       // Don't check idle state if controls haven't been enabled yet
       if (!isControlEnabled || this.lastMovementTime === null) {
         return;
+      }
+
+      // Check for gamepad and touch input and reset idle timer if active
+      if (this.inputManager) {
+        const movementInput = this.inputManager.getMovementInput();
+        const hasMovementInput =
+          Math.abs(movementInput.x) > 0.01 || Math.abs(movementInput.y) > 0.01;
+
+        // Check for gamepad camera input (right stick)
+        const gamepad = this.inputManager.getGamepad();
+        let hasCameraInput = false;
+        if (gamepad) {
+          const rightX = this.inputManager.applyDeadzone(
+            gamepad.axes[this.inputManager.gamepadMapping.AXIS_RIGHT_STICK_X]
+          );
+          const rightY = this.inputManager.applyDeadzone(
+            gamepad.axes[this.inputManager.gamepadMapping.AXIS_RIGHT_STICK_Y]
+          );
+          hasCameraInput = Math.abs(rightX) > 0.01 || Math.abs(rightY) > 0.01;
+        }
+
+        // Check for touch joystick input
+        let hasTouchInput = false;
+        if (
+          this.inputManager.leftJoystick &&
+          this.inputManager.leftJoystick.isActive()
+        ) {
+          hasTouchInput = true;
+        }
+        if (
+          this.inputManager.rightJoystick &&
+          this.inputManager.rightJoystick.isActive()
+        ) {
+          hasTouchInput = true;
+        }
+
+        // If there's any gamepad or touch input, reset idle timer
+        if (hasMovementInput || hasCameraInput || hasTouchInput) {
+          this.onMovement();
+        }
       }
 
       const timeSinceLastMovement = Date.now() - this.lastMovementTime;
@@ -245,7 +287,7 @@ export class IdleHelper {
         this.stopAnimation();
         this.helperElement.style.opacity = "0";
       }
-    }, 1000);
+    }, 100); // Check every 100ms for responsive gamepad detection
   }
 
   startAnimation() {

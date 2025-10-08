@@ -8,6 +8,12 @@
  * - loop: Whether the sound should loop, optional, defaults to false
  * - preload: Whether to preload this sound (default: true)
  * - rate: Playback speed (1.0 = normal), optional
+ * - playOn: Array of states OR criteria object when sound should play
+ *   - Array format: [STATE1, STATE2]
+ *   - Criteria format: { currentState: { $gte: STATE } }
+ * - stopOn: Array of states OR criteria object when sound should stop
+ *   - Array format: [STATE1, STATE2]
+ *   - Criteria format: { currentState: { $gte: STATE } }
  *
  * For 3D spatial audio, also include:
  * - spatial: true to indicate this is a 3D positioned sound

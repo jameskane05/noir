@@ -8,9 +8,10 @@
  *   - text: The text to display
  *   - duration: How long to show this caption (in seconds)
  * - criteria: Optional object with key-value pairs that must match game state
- *   - Example: { currentState: GAME_STATES.TITLE_SEQUENCE_COMPLETE }
- * - activationCondition: Optional function that receives gameState and returns true if dialog should play
- *   - Example: (state) => state.chapter === 2 && !state.hasSeenDialog
+ *   - Simple equality: { currentState: GAME_STATES.TITLE_SEQUENCE_COMPLETE }
+ *   - Comparison operators: { currentState: { $gte: GAME_STATES.INTRO, $lt: GAME_STATES.DRIVE_BY } }
+ *   - Operators: $eq, $ne, $gt, $gte, $lt, $lte, $in, $nin
+ *   - Example: Play after INTRO but before DRIVE_BY
  * - once: If true, only play once (tracked automatically)
  * - priority: Higher priority dialogs are checked first (default: 0)
  * - autoPlay: If true, automatically play when conditions are met (default: false)
@@ -26,6 +27,7 @@
  */
 
 import { GAME_STATES, DIALOG_RESPONSE_TYPES } from "./gameData.js";
+import { checkCriteria } from "./criteriaHelper.js";
 
 /**
  * Dialog IDs - Numeric constants for type safety
@@ -282,17 +284,8 @@ export const dialogSequences = {
     delay: 0.5,
     onComplete: (gameManager) => {
       console.log("DRIVE_BY_PREAMBLE dialog completed - moving to DRIVE_BY");
+      // State change will automatically trigger look-and-jump animation via cameraAnimationData.js
       gameManager.setState({ currentState: GAME_STATES.DRIVE_BY });
-
-      // Trigger the look-and-jump camera animation
-      gameManager.emit("camera:animation", {
-        animation: "/json/look-and-jump.json",
-        onComplete: (success) => {
-          if (success) {
-            console.log("Look and jump camera animation completed");
-          }
-        },
-      });
     },
   },
 };
@@ -322,32 +315,10 @@ export function getDialogsForState(gameState, playedDialogs = new Set()) {
       continue;
     }
 
-    // Check criteria (simple key-value matching)
+    // Check criteria (supports operators like $gte, $lt, etc.)
     if (dialog.criteria) {
-      let stateMatches = true;
-      for (const [key, value] of Object.entries(dialog.criteria)) {
-        if (gameState[key] !== value) {
-          stateMatches = false;
-          break;
-        }
-      }
-      if (!stateMatches) continue;
-    }
-
-    // Check activationCondition (custom function)
-    if (dialog.activationCondition) {
-      if (typeof dialog.activationCondition === "function") {
-        try {
-          if (!dialog.activationCondition(gameState)) {
-            continue;
-          }
-        } catch (error) {
-          console.warn(
-            `DialogData: Error in activationCondition for dialog "${dialog.id}":`,
-            error
-          );
-          continue;
-        }
+      if (!checkCriteria(gameState, dialog.criteria)) {
+        continue;
       }
     }
 

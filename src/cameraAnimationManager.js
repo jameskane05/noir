@@ -1,22 +1,27 @@
 import * as THREE from "three";
+import { getCameraAnimationForState } from "./cameraAnimationData.js";
 
 /**
- * CameraAnimationSystem - Manages playback of recorded camera animations
+ * CameraAnimationManager - Manages playback of recorded camera animations
  *
  * Features:
  * - Load and play head-pose animations from JSON
+ * - State-driven playback with criteria support
  * - Smooth handoff to/from character controller
  * - Local-space playback (applies deltas relative to starting pose)
- * - Event-based completion callbacks
+ * - playOnce tracking per animation
+ * - Configurable input restoration
  */
-class CameraAnimationSystem {
-  constructor(camera, characterController) {
+class CameraAnimationManager {
+  constructor(camera, characterController, gameManager) {
     this.camera = camera;
     this.characterController = characterController;
+    this.gameManager = gameManager;
 
     // Playback state
     this.isPlaying = false;
     this.currentAnimation = null;
+    this.currentAnimationData = null; // Stores the data config (syncController, restoreInput, etc.)
     this.elapsed = 0;
     this.frameIdx = 1;
     this.onComplete = null;
@@ -32,6 +37,101 @@ class CameraAnimationSystem {
 
     // Animation library
     this.animations = new Map();
+
+    // Tracking for playOnce
+    this.playedAnimations = new Set();
+
+    // Track last state to detect changes
+    this.lastState = null;
+
+    // Listen for state changes
+    if (this.gameManager) {
+      this.gameManager.on("state:changed", (newState, oldState) => {
+        this.onStateChanged(newState);
+      });
+    }
+
+    console.log("CameraAnimationManager: Initialized");
+  }
+
+  /**
+   * Load animations from data
+   * @param {Object} animationData - Camera animation data object
+   * @returns {Promise<void>}
+   */
+  async loadAnimationsFromData(animationData) {
+    const animations = Object.values(animationData);
+    const loadPromises = animations.map((anim) =>
+      this.loadAnimation(anim.id, anim.path)
+    );
+    await Promise.all(loadPromises);
+    console.log(
+      `CameraAnimationManager: Loaded ${animations.length} animations from data`
+    );
+  }
+
+  /**
+   * Handle game state changes
+   * @param {Object} newState - New game state
+   */
+  onStateChanged(newState) {
+    console.log(
+      `CameraAnimationManager: State changed, checking for animations...`,
+      newState
+    );
+
+    // Don't interrupt currently playing animation
+    if (this.isPlaying) {
+      console.log(
+        `CameraAnimationManager: Animation already playing, skipping`
+      );
+      return;
+    }
+
+    // Check if any animation should play for this state
+    const animData = getCameraAnimationForState(newState);
+    if (!animData) {
+      console.log(`CameraAnimationManager: No animation matches current state`);
+      return;
+    }
+
+    console.log(
+      `CameraAnimationManager: Found animation '${animData.id}' for state`
+    );
+
+    // Check playOnce
+    if (animData.playOnce && this.playedAnimations.has(animData.id)) {
+      console.log(
+        `CameraAnimationManager: Animation '${animData.id}' already played (playOnce)`
+      );
+      return;
+    }
+
+    // Play the animation
+    console.log(
+      `CameraAnimationManager: State changed, playing '${animData.id}'`
+    );
+    this.playFromData(animData);
+  }
+
+  /**
+   * Play an animation from data config
+   * @param {Object} animData - Animation data from cameraAnimationData.js
+   * @returns {boolean} Success
+   */
+  playFromData(animData) {
+    const success = this.play(
+      animData.id,
+      () => {
+        // Mark as played if playOnce
+        if (animData.playOnce) {
+          this.playedAnimations.add(animData.id);
+        }
+      },
+      animData
+    );
+
+    return success;
   }
 
   /**
@@ -51,7 +151,7 @@ class CameraAnimationSystem {
       const data = await res.json();
       const raw = Array.isArray(data.frames) ? data.frames : [];
       if (raw.length === 0) {
-        console.warn(`CameraAnimationSystem: No frames in '${src}'`);
+        console.warn(`CameraAnimationManager: No frames in '${src}'`);
         return false;
       }
 
@@ -81,13 +181,13 @@ class CameraAnimationSystem {
       const duration = frames[frames.length - 1].t;
       this.animations.set(name, { frames, duration });
       console.log(
-        `CameraAnimationSystem: Loaded '${name}' (${
+        `CameraAnimationManager: Loaded '${name}' (${
           frames.length
         } frames, ${duration.toFixed(2)}s)`
       );
       return true;
     } catch (e) {
-      console.warn(`CameraAnimationSystem: Failed to load '${name}':`, e);
+      console.warn(`CameraAnimationManager: Failed to load '${name}':`, e);
       return false;
     }
   }
@@ -96,12 +196,13 @@ class CameraAnimationSystem {
    * Play an animation
    * @param {string} name - Animation identifier
    * @param {Function} onComplete - Optional completion callback
+   * @param {Object} animData - Optional animation data config
    * @returns {boolean} Success
    */
-  play(name, onComplete = null) {
+  play(name, onComplete = null, animData = null) {
     const anim = this.animations.get(name);
     if (!anim) {
-      console.warn(`CameraAnimationSystem: Animation '${name}' not found`);
+      console.warn(`CameraAnimationManager: Animation '${name}' not found`);
       return false;
     }
 
@@ -111,36 +212,44 @@ class CameraAnimationSystem {
 
     // Disable character controller
     if (this.characterController) {
-      this.characterController.inputDisabled = true;
-      this.characterController.keys = {
-        w: false,
-        a: false,
-        s: false,
-        d: false,
-        shift: false,
-      };
+      this.characterController.disableInput();
     }
 
     // Start playback
     this.currentAnimation = anim;
+    this.currentAnimationData = animData;
     this.elapsed = 0;
     this.frameIdx = 1;
     this.isPlaying = true;
     this.onComplete = onComplete;
 
-    console.log(`CameraAnimationSystem: Playing '${name}'`);
+    console.log(`CameraAnimationManager: Playing '${name}'`);
     return true;
   }
 
   /**
-   * Stop current animation and restore control
-   * @param {boolean} syncController - If true, sync controller yaw/pitch to camera
+   * Stop current animation
+   * @param {boolean} syncController - If true, sync controller yaw/pitch to camera (can be overridden by animData)
+   * @param {boolean} restoreInput - If true, restore input controls (can be overridden by animData)
    */
-  stop(syncController = true) {
+  stop(syncController = true, restoreInput = true) {
     if (!this.isPlaying) return;
+
+    // Use animData config if available
+    if (this.currentAnimationData) {
+      syncController =
+        this.currentAnimationData.syncController !== undefined
+          ? this.currentAnimationData.syncController
+          : syncController;
+      restoreInput =
+        this.currentAnimationData.restoreInput !== undefined
+          ? this.currentAnimationData.restoreInput
+          : restoreInput;
+    }
 
     this.isPlaying = false;
     this.currentAnimation = null;
+    this.currentAnimationData = null;
 
     // Update physics body position to match camera's final position
     if (this.characterController && this.characterController.character) {
@@ -187,12 +296,17 @@ class CameraAnimationSystem {
         this.characterController.targetYaw = this.characterController.yaw;
         this.characterController.targetPitch = this.characterController.pitch;
       }
-      this.characterController.inputDisabled = false;
-    }
 
-    console.log(
-      "CameraAnimationSystem: Stopped, physics body updated to camera position"
-    );
+      // Only restore input if configured
+      if (restoreInput) {
+        this.characterController.enableInput();
+        console.log("CameraAnimationManager: Stopped, input restored");
+      } else {
+        console.log(
+          "CameraAnimationManager: Stopped, input NOT restored (manual restoration required)"
+        );
+      }
+    }
   }
 
   /**
@@ -217,7 +331,7 @@ class CameraAnimationSystem {
 
       // Complete
       const callback = this.onComplete;
-      this.stop(true);
+      this.stop(true, true); // Use defaults, will be overridden by animData if present
       if (callback) callback();
       return;
     }
@@ -265,4 +379,4 @@ class CameraAnimationSystem {
   }
 }
 
-export default CameraAnimationSystem;
+export default CameraAnimationManager;

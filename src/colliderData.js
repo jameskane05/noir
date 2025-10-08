@@ -18,10 +18,10 @@
  * - onExit: Array of events to emit when player exits
  * - once: If true, only trigger once then deactivate (default: false)
  * - enabled: If false, collider is inactive (default: true)
- * - activationCondition: Optional function that receives gameState and returns true if collider should be active
- *   - Example: (state) => state.hasMetCharacter === true
  * - criteria: Optional object with key-value pairs that must match game state
- *   - Example: { introComplete: true, chapter: 1 }
+ *   - Simple equality: { introComplete: true, chapter: 1 }
+ *   - Comparison operators: { currentState: { $gte: GAME_STATES.INTRO, $lt: GAME_STATES.DRIVE_BY } }
+ *   - Operators: $eq, $ne, $gt, $gte, $lt, $lte, $in, $nin
  *
  * Event Types:
  * - "dialog": Trigger a dialog sequence
@@ -35,9 +35,14 @@
  * - "state": Set game state
  *   - data: { key: "state-key", value: any }
  * - "camera-lookat": Trigger camera look-at
- *   - data: { position: {x, y, z}, duration: 2.0, restoreControl: true }
+ *   - data: { position: {x, y, z}, duration: 2.0, restoreControl: true, enableZoom: false }
+ *   - OR with targetMesh: { targetMesh: {objectId: "object-id", childName: "MeshName"}, duration: 2.0, restoreControl: true, enableZoom: true }
+ *   - Optional zoomOptions: { zoomFactor: 1.5, minAperture: 0.15, maxAperture: 0.35, transitionStart: 0.8, transitionDuration: 2.0, holdDuration: 2.0 }
  * - "camera-animation": Play a camera animation
  *   - data: { animation: "path/to/animation.json", onComplete: optional-callback }
+ * - "move-to": Move character to position and rotation
+ *   - data: { position: {x, y, z}, rotation: {yaw: radians, pitch: radians}, duration: 2.0, inputControl: {disableMovement: true, disableRotation: false} }
+ *   - Input is NOT automatically restored. Use onComplete callback or later event to call characterController.enableMovement() / enableRotation() / enableInput()
  * - "custom": Emit custom event for game-specific logic
  *   - data: { eventName: "name", payload: {...} }
  */
@@ -77,6 +82,15 @@ export const colliders = [
           position: { x: 7, y: 2, z: 42 }, // Look at phonebooth (center/eye level)
           duration: 1.5,
           restoreControl: true,
+          enableZoom: true, // Enable dramatic zoom/DoF when looking at phone booth
+          zoomOptions: {
+            zoomFactor: 2.0, // More dramatic 2x zoom
+            minAperture: 0.2, // Stronger DoF effect
+            maxAperture: 0.4,
+            transitionStart: 0.6, // Start zooming earlier (60% of look-at)
+            transitionDuration: 2.5, // Slower, more dramatic transition
+            holdDuration: 3.0, // Hold the zoom longer for dramatic effect
+          },
         },
       },
       {
@@ -89,7 +103,7 @@ export const colliders = [
     enabled: true,
     // Optional: Activation conditions
     // criteria: { titleComplete: true }, // Simple key-value check
-    // activationCondition: (state) => state.isPlaying === true, // Custom function
+    // criteria: { currentState: { $gte: GAME_STATES.INTRO_COMPLETE } }, // Range check
   },
 
   // Phonebooth interaction - only available after hearing the phone ring
@@ -100,6 +114,22 @@ export const colliders = [
     rotation: { x: 0, y: 0, z: 0 },
     dimensions: { x: 1, y: 1.5, z: 1 }, // Small box around phone
     onEnter: [
+      {
+        type: "move-to",
+        data: {
+          position: { x: 8.05, y: 0.4, z: 41.65 }, // Center of booth (y: 0.9 for character center)
+          rotation: {
+            yaw: Math.PI / 2, // Face the phone (90 degrees)
+            pitch: 0,
+          },
+          duration: 1.5,
+          inputControl: {
+            disableMovement: true, // Disable movement
+            disableRotation: false, // Allow rotation (player can look around)
+          },
+          // Note: Movement stays disabled until manually restored (e.g., after phone interaction)
+        },
+      },
       {
         type: "state",
         data: { key: "currentState", value: GAME_STATES.ANSWERED_PHONE },

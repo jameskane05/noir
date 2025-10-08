@@ -8,9 +8,10 @@
  * - path: Path to the audio file
  * - description: Human-readable description
  * - criteria: Optional object with key-value pairs that must match game state
- *   - Example: { titleSequenceComplete: true }
- * - activationCondition: Optional function that receives gameState and returns true if track should play
- *   - Example: (state) => state.chapter === 2 && state.hasSeenEnding === false
+ *   - Simple equality: { currentState: GAME_STATES.START_SCREEN }
+ *   - Comparison operators: { currentState: { $gte: GAME_STATES.INTRO, $lt: GAME_STATES.DRIVE_BY } }
+ *   - Operators: $eq, $ne, $gt, $gte, $lt, $lte, $in, $nin
+ *   - Example: { currentState: { $gt: GAME_STATES.START_SCREEN } } // Play after start screen
  * - fadeTime: Crossfade duration in seconds when switching to this track
  * - priority: Higher priority tracks are checked first (default: 0)
  * - isDefault: If true, this track plays when no other conditions match (default: false)
@@ -20,6 +21,7 @@
  */
 
 import { GAME_STATES } from "./gameData.js";
+import { checkCriteria } from "./criteriaHelper.js";
 
 export const musicTracks = {
   rach2: {
@@ -43,8 +45,9 @@ export const musicTracks = {
     path: "./audio/music/rach 3 - mv 1 - 0-40.mp3",
     description: "Rachmaninoff 3 - Movement 1 (0:00-0:40) - Main gameplay",
     // Play when currentState progresses beyond START_SCREEN
-    activationCondition: (state) =>
-      state.currentState > GAME_STATES.START_SCREEN,
+    criteria: {
+      currentState: { $gt: GAME_STATES.START_SCREEN },
+    },
     fadeTime: 0.25,
     priority: 10,
   },
@@ -62,32 +65,10 @@ export function getMusicForState(gameState) {
   );
 
   for (const track of sortedTracks) {
-    // Check criteria (simple key-value matching)
+    // Check criteria (supports operators like $gte, $lt, etc.)
     if (track.criteria) {
-      let stateMatches = true;
-      for (const [key, value] of Object.entries(track.criteria)) {
-        if (gameState[key] !== value) {
-          stateMatches = false;
-          break;
-        }
-      }
-      if (!stateMatches) continue;
-    }
-
-    // Check activationCondition (custom function)
-    if (track.activationCondition) {
-      if (typeof track.activationCondition === "function") {
-        try {
-          if (!track.activationCondition(gameState)) {
-            continue;
-          }
-        } catch (error) {
-          console.warn(
-            `MusicData: Error in activationCondition for track "${track.id}":`,
-            error
-          );
-          continue;
-        }
+      if (!checkCriteria(gameState, track.criteria)) {
+        continue;
       }
     }
 

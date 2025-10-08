@@ -13,17 +13,21 @@
  * - description: Human-readable description
  * - options: Type-specific options
  * - criteria: Optional object with key-value pairs that must match game state
- *   - Example: { currentState: GAME_STATES.CHAPTER_2 }
- * - activationCondition: Optional function that receives gameState and returns true if object should load
- *   - Example: (state) => state.chapter >= 2
+ *   - Simple equality: { currentState: GAME_STATES.CHAPTER_2 }
+ *   - Comparison operators: { currentState: { $gte: GAME_STATES.INTRO, $lt: GAME_STATES.DRIVE_BY } }
+ *   - Operators: $eq, $ne, $gt, $gte, $lt, $lte, $in, $nin
  * - loadByDefault: If true, load regardless of state (default: false)
  * - priority: Higher priority objects are loaded first (default: 0)
  * - animations: Array of animation definitions (for GLTF objects with animations)
  *   - id: Unique identifier for this animation
  *   - clipName: Name of animation clip in GLTF (null = use first clip)
  *   - loop: Whether to loop the animation
- *   - playOn: Array of game states that trigger playback
- *   - stopOn: Array of game states that stop playback
+ *   - playOn: Array of states OR criteria object that trigger playback
+ *     - Array format: [STATE1, STATE2]
+ *     - Criteria format: { currentState: { $gte: STATE } }
+ *   - stopOn: Array of states OR criteria object that stop playback
+ *     - Array format: [STATE1, STATE2]
+ *     - Criteria format: { currentState: { $gte: STATE } }
  *   - autoPlay: If true, automatically play when state conditions are met
  *   - timeScale: Playback speed (1.0 = normal)
  *
@@ -32,12 +36,13 @@
  */
 
 import { GAME_STATES } from "./gameData.js";
+import { checkCriteria, checkPlayOn, checkStopOn } from "./criteriaHelper.js";
 
 export const sceneObjects = {
   exterior: {
     id: "exterior",
     type: "splat",
-    path: "/exterior-test.ply",
+    path: "/exterior-test.compressed.ply",
     description: "Main exterior environment splat mesh",
     position: [0, 0, 0],
     rotation: [0, 0, 0],
@@ -54,7 +59,7 @@ export const sceneObjects = {
     description: "Phone booth GLTF model",
     position: [7, -2.5, 42],
     rotation: [0, Math.PI / 2, 0], // 90 degrees around Y axis
-    scale: [3, 3, 3],
+    scale: [3.5, 3, 3.5],
     options: {
       // Create a container group for proper scaling
       useContainer: true,
@@ -95,32 +100,10 @@ export function getSceneObjectsForState(gameState) {
       continue;
     }
 
-    // Check criteria (simple key-value matching)
+    // Check criteria (supports operators like $gte, $lt, etc.)
     if (obj.criteria) {
-      let stateMatches = true;
-      for (const [key, value] of Object.entries(obj.criteria)) {
-        if (gameState[key] !== value) {
-          stateMatches = false;
-          break;
-        }
-      }
-      if (!stateMatches) continue;
-    }
-
-    // Check activationCondition (custom function)
-    if (obj.activationCondition) {
-      if (typeof obj.activationCondition === "function") {
-        try {
-          if (!obj.activationCondition(gameState)) {
-            continue;
-          }
-        } catch (error) {
-          console.warn(
-            `SceneData: Error in activationCondition for object "${obj.id}":`,
-            error
-          );
-          continue;
-        }
+      if (!checkCriteria(gameState, obj.criteria)) {
+        continue;
       }
     }
 

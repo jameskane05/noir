@@ -4,49 +4,35 @@ import { GAME_STATES, startScreen } from "./gameData.js";
  * DebugSpawner - Debug utility for spawning into specific game states
  *
  * Usage:
- * - Add ?gameState=ANSWERED_PHONE to URL
+ * - Add ?gameState=<STATE_NAME> to URL (e.g., ?gameState=DRIVE_BY)
  * - All managers will initialize with correct state (music, SFX, dialogs, scenes)
- *
- * Available states:
- * - START_SCREEN (default)
- * - TITLE_SEQUENCE
- * - TITLE_SEQUENCE_COMPLETE
- * - INTRO_COMPLETE
- * - PHONE_BOOTH_RINGING
- * - ANSWERED_PHONE
+ * - Any state name from GAME_STATES in gameData.js is automatically supported
+ * - Custom overrides can be defined in stateOverrides for specific positioning/settings
  */
 
 /**
- * Debug state presets - define the full state for each debug spawn point
+ * Custom overrides for specific states that need non-default settings
  */
-export const debugStatePresets = {
+const stateOverrides = {
   START_SCREEN: {
-    ...startScreen,
-    currentState: GAME_STATES.START_SCREEN,
     controlEnabled: false,
     cityAmbiance: false,
     playerPosition: { x: 10, y: 0.9, z: 15 }, // Default spawn
   },
 
   TITLE_SEQUENCE: {
-    ...startScreen,
-    currentState: GAME_STATES.TITLE_SEQUENCE,
     controlEnabled: false,
     cityAmbiance: true,
     playerPosition: { x: 10, y: 0.9, z: 15 },
   },
 
   TITLE_SEQUENCE_COMPLETE: {
-    ...startScreen,
-    currentState: GAME_STATES.TITLE_SEQUENCE_COMPLETE,
     controlEnabled: true,
     cityAmbiance: true,
     playerPosition: { x: 10, y: 0.9, z: 15 },
   },
 
   INTRO_COMPLETE: {
-    ...startScreen,
-    currentState: GAME_STATES.INTRO_COMPLETE,
     isPlaying: true,
     controlEnabled: true,
     cityAmbiance: true,
@@ -54,21 +40,101 @@ export const debugStatePresets = {
   },
 
   PHONE_BOOTH_RINGING: {
-    ...startScreen,
-    currentState: GAME_STATES.PHONE_BOOTH_RINGING,
     controlEnabled: true,
     cityAmbiance: true,
     playerPosition: { x: 10, y: 0.9, z: 40 }, // Near phone booth
   },
 
   ANSWERED_PHONE: {
-    ...startScreen,
-    currentState: GAME_STATES.ANSWERED_PHONE,
+    controlEnabled: true,
+    cityAmbiance: true,
+    playerPosition: { x: 7, y: 0.9, z: 42 }, // At phone booth
+  },
+
+  DIALOG_CHOICE_1: {
+    controlEnabled: true,
+    cityAmbiance: true,
+    playerPosition: { x: 7, y: 0.9, z: 42 }, // At phone booth
+  },
+
+  DRIVE_BY_PREAMBLE: {
+    controlEnabled: true,
+    cityAmbiance: true,
+    playerPosition: { x: 7, y: 0.9, z: 42 }, // At phone booth
+  },
+
+  DRIVE_BY: {
     controlEnabled: true,
     cityAmbiance: true,
     playerPosition: { x: 7, y: 0.9, z: 42 }, // At phone booth
   },
 };
+
+/**
+ * Generate a default preset for any game state
+ * @param {number} stateValue - The GAME_STATES value
+ * @returns {Object} State preset
+ */
+function createDefaultPreset(stateValue) {
+  return {
+    ...startScreen,
+    currentState: stateValue,
+    controlEnabled: true,
+    cityAmbiance: true,
+    playerPosition: { x: 10, y: 0.9, z: 15 }, // Default spawn
+  };
+}
+
+/**
+ * Get state preset - dynamically supports all GAME_STATES
+ * @param {string} stateName - Name of the state (e.g., "DRIVE_BY")
+ * @returns {Object} State preset
+ */
+function getStatePreset(stateName) {
+  // Check if this is a valid GAME_STATE
+  if (!(stateName in GAME_STATES)) {
+    return null;
+  }
+
+  const stateValue = GAME_STATES[stateName];
+  const defaultPreset = createDefaultPreset(stateValue);
+  const overrides = stateOverrides[stateName] || {};
+
+  return {
+    ...defaultPreset,
+    ...overrides,
+  };
+}
+
+/**
+ * Debug state presets - dynamically generated for all GAME_STATES
+ */
+export const debugStatePresets = new Proxy(
+  {},
+  {
+    get(target, prop) {
+      if (typeof prop === "string" && prop in GAME_STATES) {
+        return getStatePreset(prop);
+      }
+      return undefined;
+    },
+    has(target, prop) {
+      return typeof prop === "string" && prop in GAME_STATES;
+    },
+    ownKeys() {
+      return Object.keys(GAME_STATES);
+    },
+    getOwnPropertyDescriptor(target, prop) {
+      if (typeof prop === "string" && prop in GAME_STATES) {
+        return {
+          enumerable: true,
+          configurable: true,
+        };
+      }
+      return undefined;
+    },
+  }
+);
 
 /**
  * Parse URL and get debug state preset

@@ -7,6 +7,7 @@ class CharacterController {
     character,
     camera,
     renderer,
+    inputManager,
     sfxManager = null,
     sparkRenderer = null,
     idleHelper = null
@@ -14,12 +15,10 @@ class CharacterController {
     this.character = character;
     this.camera = camera;
     this.renderer = renderer;
+    this.inputManager = inputManager;
     this.sfxManager = sfxManager;
     this.sparkRenderer = sparkRenderer;
     this.idleHelper = idleHelper;
-
-    // Movement state
-    this.keys = { w: false, a: false, s: false, d: false, shift: false };
 
     // Camera rotation
     this.yaw = THREE.MathUtils.degToRad(-230); // Initial yaw in radians
@@ -35,7 +34,21 @@ class CharacterController {
     this.lookAtStartQuat = new THREE.Quaternion();
     this.lookAtEndQuat = new THREE.Quaternion();
     this.lookAtOnComplete = null;
+    this.lookAtDisabledInput = false;
     this.inputDisabled = false;
+
+    // Character move-to system
+    this.isMovingTo = false;
+    this.moveToStartPos = new THREE.Vector3();
+    this.moveToTargetPos = new THREE.Vector3();
+    this.moveToStartYaw = 0;
+    this.moveToTargetYaw = 0;
+    this.moveToStartPitch = 0;
+    this.moveToTargetPitch = 0;
+    this.moveToDuration = 0;
+    this.moveToProgress = 0;
+    this.moveToOnComplete = null;
+    this.moveToInputControl = null;
 
     // Depth of Field system
     this.dofEnabled = true; // Can be controlled externally
@@ -101,7 +114,6 @@ class CharacterController {
     this.baseSpeed = 4.0;
     this.sprintMultiplier = 1.75; // Reduced from 2.0 (30% slower sprint)
     this.cameraHeight = 1.6;
-    this.mouseSensitivity = 0.0025;
     this.cameraSmoothingFactor = 0.15;
 
     // Initialize FOV from camera
@@ -109,7 +121,6 @@ class CharacterController {
     this.currentFov = this.baseFov;
     this.targetFov = this.baseFov;
 
-    this.setupInputListeners();
     this.loadFootstepAudio();
   }
 
@@ -176,17 +187,50 @@ class CharacterController {
    * @param {THREE.Vector3} targetPosition - World position to look at
    * @param {number} duration - Time to complete the look-at in seconds
    * @param {Function} onComplete - Optional callback when complete
+   * @param {boolean} enableZoom - Whether to enable zoom/DoF effects (default: false)
+   * @param {Object} zoomOptions - Zoom/DoF configuration options
+   * @param {boolean} disableInput - Whether to disable input during lookAt (default: true)
    */
-  lookAt(targetPosition, duration = 1.0, onComplete = null) {
+  lookAt(
+    targetPosition,
+    duration = 1.0,
+    onComplete = null,
+    enableZoom = false,
+    zoomOptions = {},
+    disableInput = true
+  ) {
     this.isLookingAt = true;
     this.lookAtTarget = targetPosition.clone();
     this.lookAtDuration = duration;
     this.lookAtProgress = 0;
     this.lookAtOnComplete = onComplete;
-    this.inputDisabled = true;
+    this.lookAtDisabledInput = disableInput; // Store whether we disabled input
 
-    // Clear all key states to prevent stuck keys
-    this.keys = { w: false, a: false, s: false, d: false, shift: false };
+    // Parse zoom options with defaults
+    const {
+      zoomFactor = 1.5, // 1.5x zoom (FOV reduction)
+      minAperture = 0.15, // Minimum aperture (less blur at distance)
+      maxAperture = 0.35, // Maximum aperture (more blur close-up)
+      transitionStart = 0.8, // When to start DoF transition (0-1)
+      transitionDuration = 2.0, // How long the DoF transition takes
+      holdDuration = 2.0, // How long to hold DoF after look-at completes
+    } = zoomOptions;
+
+    // Store zoom config for this look-at
+    this.currentZoomConfig = {
+      zoomFactor,
+      minAperture,
+      maxAperture,
+      transitionStart,
+      transitionDuration,
+      holdDuration,
+    };
+
+    // Only disable input if requested (e.g., if not being managed by moveTo)
+    if (disableInput) {
+      this.inputDisabled = true;
+      this.inputManager.disable();
+    }
 
     // Store current camera orientation as quaternion
     this.lookAtStartQuat.setFromEuler(
@@ -208,16 +252,15 @@ class CharacterController {
     );
 
     // Calculate DoF values based on distance to target (but don't start transition yet)
-    if (this.sparkRenderer && this.dofEnabled) {
+    if (enableZoom && this.sparkRenderer && this.dofEnabled) {
       const distance = this.camera.position.distanceTo(targetPosition);
 
       // Calculate target DoF settings
       const targetFocalDistance = distance;
 
-      // Calculate aperture size for dramatic DoF effect
+      // Calculate aperture size for dramatic DoF effect using configured values
       // Larger aperture = more blur, smaller = less blur
-      const minAperture = 0.15; // Strong effect even at distance
-      const maxAperture = 0.35; // Very dramatic close-up effect
+      const { minAperture, maxAperture } = this.currentZoomConfig;
 
       // Scale aperture based on distance (closer = more DoF, further = less)
       // Clamp distance between 2 and 20 meters for sensible scaling
@@ -237,23 +280,35 @@ class CharacterController {
       console.log(
         `CharacterController: DoF ready - Distance: ${distance.toFixed(
           2
-        )}m, Aperture: ${targetApertureSize.toFixed(3)} (will transition at ${(
-          this.dofTransitionStartProgress * 100
-        ).toFixed(0)}% over ${this.dofTransitionDuration}s)`
+        )}m, Aperture: ${targetApertureSize.toFixed(
+          3
+        )} (min: ${minAperture.toFixed(3)}, max: ${maxAperture.toFixed(
+          3
+        )}) (will transition at ${(
+          this.currentZoomConfig.transitionStart * 100
+        ).toFixed(0)}% over ${this.currentZoomConfig.transitionDuration}s)`
       );
     }
 
     // Set up zoom transition (synced with DoF)
-    this.startFov = this.currentFov; // Capture current FOV as start
-    this.targetFov = this.baseFov / this.zoomFactor; // Zoom in by reducing FOV
-    this.lookAtZoomActive = true;
-    this.zoomTransitionProgress = 0; // Reset zoom progress
+    if (enableZoom) {
+      this.startFov = this.currentFov; // Capture current FOV as start
+      this.targetFov = this.baseFov / this.currentZoomConfig.zoomFactor; // Zoom in by reducing FOV
+      this.lookAtZoomActive = true;
+      this.zoomTransitionProgress = 0; // Reset zoom progress
 
-    console.log(
-      `CharacterController: Looking at target over ${duration}s (zoom: ${this.baseFov.toFixed(
-        1
-      )}° → ${this.targetFov.toFixed(1)}°)`
-    );
+      console.log(
+        `CharacterController: Looking at target over ${duration}s (zoom: ${this.baseFov.toFixed(
+          1
+        )}° → ${this.targetFov.toFixed(
+          1
+        )}° [${this.currentZoomConfig.zoomFactor.toFixed(2)}x])`
+      );
+    } else {
+      console.log(
+        `CharacterController: Looking at target over ${duration}s (no zoom)`
+      );
+    }
   }
 
   /**
@@ -264,10 +319,12 @@ class CharacterController {
     if (!this.isLookingAt) return;
 
     this.isLookingAt = false;
-    this.inputDisabled = false;
 
-    // Clear all key states to prevent stuck keys
-    this.keys = { w: false, a: false, s: false, d: false, shift: false };
+    // Re-enable input manager only if we disabled it
+    if (this.lookAtDisabledInput) {
+      this.inputDisabled = false;
+      this.inputManager.enable();
+    }
 
     // Reset glance state
     this.glanceState = null;
@@ -310,38 +367,87 @@ class CharacterController {
     console.log("CharacterController: Look-at cancelled, control restored");
   }
 
-  setupInputListeners() {
-    // Keyboard input
-    window.addEventListener("keydown", (event) => {
-      if (this.inputDisabled) return;
-      const k = event.key.toLowerCase();
-      if (k in this.keys) this.keys[k] = true;
-      if (event.key === "Shift") this.keys.shift = true;
-    });
+  /**
+   * Start character move-to sequence
+   * Smoothly moves character to target position and rotation
+   * @param {THREE.Vector3} targetPosition - World position to move to
+   * @param {Object} targetRotation - Target rotation {yaw: radians, pitch: radians} (optional)
+   * @param {number} duration - Time to complete the move in seconds
+   * @param {Function} onComplete - Optional callback when complete
+   * @param {Object} inputControl - Control what input to disable {disableMovement: true/false, disableRotation: true/false}
+   */
+  moveTo(
+    targetPosition,
+    targetRotation = null,
+    duration = 2.0,
+    onComplete = null,
+    inputControl = { disableMovement: true, disableRotation: true }
+  ) {
+    this.isMovingTo = true;
+    this.moveToDuration = duration;
+    this.moveToProgress = 0;
+    this.moveToOnComplete = onComplete;
+    this.moveToInputControl = inputControl; // Store for restoration later
 
-    window.addEventListener("keyup", (event) => {
-      if (this.inputDisabled) return;
-      const k = event.key.toLowerCase();
-      if (k in this.keys) this.keys[k] = false;
-      if (event.key === "Shift") this.keys.shift = false;
-    });
+    // Disable input based on inputControl settings
+    // Only set inputDisabled if BOTH movement and rotation are disabled
+    if (inputControl.disableMovement && inputControl.disableRotation) {
+      // Disable everything
+      this.inputDisabled = true;
+      this.inputManager.disable();
+    } else if (inputControl.disableMovement) {
+      // Disable only movement, keep rotation
+      // Don't set inputDisabled - let inputManager handle selective blocking
+      this.inputManager.disableMovement();
+    } else if (inputControl.disableRotation) {
+      // Disable only rotation, keep movement
+      // Don't set inputDisabled - let inputManager handle selective blocking
+      this.inputManager.disableRotation();
+    }
+    // If neither is disabled, don't change anything
 
-    // Pointer lock + mouse look
-    this.renderer.domElement.addEventListener("click", () => {
-      if (this.inputDisabled) return;
-      this.renderer.domElement.requestPointerLock();
-    });
+    // Store current position (get from physics body)
+    const currentPos = this.character.translation();
+    this.moveToStartPos.set(currentPos.x, currentPos.y, currentPos.z);
+    this.moveToTargetPos.copy(targetPosition);
 
-    document.addEventListener("mousemove", (event) => {
-      if (this.inputDisabled) return;
-      if (document.pointerLockElement !== this.renderer.domElement) return;
-      this.targetYaw -= event.movementX * this.mouseSensitivity;
-      this.targetPitch -= event.movementY * this.mouseSensitivity;
-      this.targetPitch = Math.max(
-        -Math.PI / 2 + 0.01,
-        Math.min(Math.PI / 2 - 0.01, this.targetPitch)
-      );
-    });
+    // Store current rotation
+    this.moveToStartYaw = this.yaw;
+    this.moveToStartPitch = this.pitch;
+
+    // Set target rotation (if provided, otherwise keep current)
+    if (targetRotation) {
+      this.moveToTargetYaw =
+        targetRotation.yaw !== undefined ? targetRotation.yaw : this.yaw;
+      this.moveToTargetPitch =
+        targetRotation.pitch !== undefined ? targetRotation.pitch : this.pitch;
+    } else {
+      this.moveToTargetYaw = this.yaw;
+      this.moveToTargetPitch = this.pitch;
+    }
+
+    console.log(
+      `CharacterController: Moving to position (${targetPosition.x.toFixed(
+        2
+      )}, ${targetPosition.y.toFixed(2)}, ${targetPosition.z.toFixed(
+        2
+      )}) over ${duration}s`
+    );
+  }
+
+  /**
+   * Cancel the move-to and restore player control
+   */
+  cancelMoveTo() {
+    if (!this.isMovingTo) return;
+
+    this.isMovingTo = false;
+    this.inputDisabled = false;
+
+    // Re-enable input manager
+    this.inputManager.enable();
+
+    console.log("CharacterController: Move-to cancelled, control restored");
   }
 
   getForwardRightVectors() {
@@ -354,6 +460,95 @@ class CharacterController {
       new THREE.Vector3(0, 1, 0)
     );
     return { forward, right };
+  }
+
+  /**
+   * Disable all character input (movement + rotation)
+   * Convenience method for other systems (dialogs, cutscenes, etc.)
+   */
+  disableInput() {
+    this.inputDisabled = true;
+    this.inputManager.disable();
+  }
+
+  /**
+   * Enable all character input (movement + rotation)
+   * Convenience method for other systems
+   */
+  enableInput() {
+    this.inputDisabled = false;
+    this.inputManager.enable();
+  }
+
+  /**
+   * Disable only movement input (rotation still works)
+   */
+  disableMovement() {
+    this.inputManager.disableMovement();
+  }
+
+  /**
+   * Enable movement input
+   */
+  enableMovement() {
+    this.inputManager.enableMovement();
+  }
+
+  /**
+   * Disable only rotation input (movement still works)
+   */
+  disableRotation() {
+    this.inputManager.disableRotation();
+  }
+
+  /**
+   * Enable rotation input
+   */
+  enableRotation() {
+    this.inputManager.enableRotation();
+  }
+
+  /**
+   * Debug helper: Log current player position and rotation
+   * Can be called from browser console: window.characterController.logPosition()
+   */
+  logPosition() {
+    const pos = this.character.translation();
+    const yawDeg = THREE.MathUtils.radToDeg(this.yaw);
+    const pitchDeg = THREE.MathUtils.radToDeg(this.pitch);
+
+    console.log("=== Player Position & Rotation ===");
+    console.log(
+      `Position: { x: ${pos.x.toFixed(2)}, y: ${pos.y.toFixed(
+        2
+      )}, z: ${pos.z.toFixed(2)} }`
+    );
+    console.log(
+      `Rotation (radians): { yaw: ${this.yaw.toFixed(
+        4
+      )}, pitch: ${this.pitch.toFixed(4)} }`
+    );
+    console.log(
+      `Rotation (degrees): { yaw: ${yawDeg.toFixed(
+        2
+      )}°, pitch: ${pitchDeg.toFixed(2)}° }`
+    );
+    console.log("\nCopy-paste for colliderData.js:");
+    console.log(
+      `position: { x: ${pos.x.toFixed(1)}, y: ${pos.y.toFixed(
+        1
+      )}, z: ${pos.z.toFixed(1)} },`
+    );
+    console.log(
+      `rotation: { yaw: ${this.yaw.toFixed(4)}, pitch: ${this.pitch.toFixed(
+        4
+      )} },`
+    );
+
+    return {
+      position: { x: pos.x, y: pos.y, z: pos.z },
+      rotation: { yaw: this.yaw, pitch: this.pitch },
+    };
   }
 
   /**
@@ -401,8 +596,10 @@ class CharacterController {
 
     if (!this.dofTransitioning) return;
 
-    // Update transition progress based on duration parameter
-    this.dofTransitionProgress += dt / this.dofTransitionDuration;
+    // Update transition progress based on configured duration
+    const transitionDuration =
+      this.currentZoomConfig?.transitionDuration || this.dofTransitionDuration;
+    this.dofTransitionProgress += dt / transitionDuration;
     const t = Math.min(1.0, this.dofTransitionProgress);
 
     // Use ease-out for smooth transition
@@ -446,8 +643,10 @@ class CharacterController {
   updateZoom(dt) {
     if (!this.zoomTransitioning) return;
 
-    // Update zoom transition progress (using same duration as DoF)
-    this.zoomTransitionProgress += dt / this.dofTransitionDuration;
+    // Update zoom transition progress (using configured duration, same as DoF)
+    const transitionDuration =
+      this.currentZoomConfig?.transitionDuration || this.dofTransitionDuration;
+    this.zoomTransitionProgress += dt / transitionDuration;
     const t = Math.min(1.0, this.zoomTransitionProgress);
 
     // Use ease-out for smooth transition (matching DoF)
@@ -654,11 +853,14 @@ class CharacterController {
     if (this.isLookingAt) {
       this.lookAtProgress += dt / this.lookAtDuration;
 
-      // Start DoF and zoom transitions when we reach the threshold
+      // Start DoF and zoom transitions when we reach the configured threshold
+      const transitionStart =
+        this.currentZoomConfig?.transitionStart ||
+        this.dofTransitionStartProgress;
       if (
         this.lookAtDofActive &&
         !this.dofTransitioning &&
-        this.lookAtProgress >= this.dofTransitionStartProgress
+        this.lookAtProgress >= transitionStart
       ) {
         this.dofTransitioning = true;
         this.startFov = this.currentFov; // Capture current FOV as start for zoom
@@ -666,7 +868,7 @@ class CharacterController {
         console.log(
           `CharacterController: Starting DoF and zoom transitions at ${(
             this.lookAtProgress * 100
-          ).toFixed(0)}%`
+          ).toFixed(0)}% (threshold: ${(transitionStart * 100).toFixed(0)}%)`
         );
       }
 
@@ -675,8 +877,10 @@ class CharacterController {
         this.lookAtProgress = 1.0;
         this.isLookingAt = false;
 
-        // Clear all key states to prevent stuck keys
-        this.keys = { w: false, a: false, s: false, d: false, shift: false };
+        // Re-enable input manager only if we disabled it
+        if (this.lookAtDisabledInput) {
+          this.inputManager.enable();
+        }
 
         // Reset glance state
         this.glanceState = null;
@@ -686,10 +890,10 @@ class CharacterController {
 
         // Start DoF hold timer (don't immediately return to base)
         if (this.sparkRenderer && this.lookAtDofActive) {
-          this.dofHoldTimer = this.dofHoldDuration;
-          console.log(
-            `CharacterController: Holding DoF for ${this.dofHoldDuration}s`
-          );
+          const holdDuration =
+            this.currentZoomConfig?.holdDuration || this.dofHoldDuration;
+          this.dofHoldTimer = holdDuration;
+          console.log(`CharacterController: Holding DoF for ${holdDuration}s`);
         }
 
         // Call completion callback if provided
@@ -720,26 +924,148 @@ class CharacterController {
       this.pitch = euler.x;
       this.targetYaw = this.yaw;
       this.targetPitch = this.pitch;
-    } else {
+    }
+
+    // Handle character move-to sequence
+    if (this.isMovingTo) {
+      this.moveToProgress += dt / this.moveToDuration;
+
+      if (this.moveToProgress >= 1.0) {
+        // Move complete
+        this.moveToProgress = 1.0;
+        this.isMovingTo = false;
+
+        // Set final position and rotation
+        this.character.setTranslation(
+          {
+            x: this.moveToTargetPos.x,
+            y: this.moveToTargetPos.y,
+            z: this.moveToTargetPos.z,
+          },
+          true
+        );
+        this.yaw = this.moveToTargetYaw;
+        this.pitch = this.moveToTargetPitch;
+        this.targetYaw = this.yaw;
+        this.targetPitch = this.pitch;
+
+        // Input control is NOT automatically restored
+        // Caller is responsible for re-enabling via characterController.enableMovement() / enableRotation() / enableInput()
+        console.log(
+          "CharacterController: Move-to complete (input state unchanged)"
+        );
+
+        // Call completion callback if provided
+        if (this.moveToOnComplete) {
+          this.moveToOnComplete();
+          this.moveToOnComplete = null;
+        }
+
+        console.log("CharacterController: Move-to complete");
+      } else {
+        // Interpolate position and rotation
+        const t = Math.min(this.moveToProgress, 1.0);
+        // Apply ease-in-out for smooth motion
+        const easedT = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+
+        // Lerp position
+        const currentPos = new THREE.Vector3();
+        currentPos.lerpVectors(
+          this.moveToStartPos,
+          this.moveToTargetPos,
+          easedT
+        );
+
+        // Update physics body position
+        this.character.setTranslation(
+          { x: currentPos.x, y: currentPos.y, z: currentPos.z },
+          true
+        );
+
+        // Interpolate rotation
+        this.yaw =
+          this.moveToStartYaw +
+          (this.moveToTargetYaw - this.moveToStartYaw) * easedT;
+        this.pitch =
+          this.moveToStartPitch +
+          (this.moveToTargetPitch - this.moveToStartPitch) * easedT;
+        this.targetYaw = this.yaw;
+        this.targetPitch = this.pitch;
+      }
+    }
+
+    if (!this.isLookingAt) {
       // Normal camera control
-      // Smooth camera rotation to reduce jitter
-      this.yaw += (this.targetYaw - this.yaw) * this.cameraSmoothingFactor;
-      this.pitch +=
-        (this.targetPitch - this.pitch) * this.cameraSmoothingFactor;
+      // Get camera input from input manager
+      const cameraInput = this.inputManager.getCameraInput(dt);
+
+      // Check if there's any manual camera input and cancel glance if so
+      const hasManualInput =
+        Math.abs(cameraInput.x) > 0.0001 || Math.abs(cameraInput.y) > 0.0001;
+      if (hasManualInput && this.glanceState !== null) {
+        // Cancel the glance and reset to current position
+        this.glanceState = null;
+        this.glanceTimer = 5.0 + Math.random() * 3.0; // Next glance in 5-8 seconds
+        this.currentRoll = 0; // Reset head tilt immediately
+        console.log(
+          "CharacterController: Manual camera input detected, cancelling glance"
+        );
+      }
+
+      // Apply camera rotation differently based on input source
+      if (cameraInput.hasGamepad) {
+        // Gamepad: Apply directly to yaw/pitch for immediate response
+        // (no target/smoothing to avoid "chasing" behavior)
+        this.yaw -= cameraInput.x;
+        this.pitch -= cameraInput.y;
+        this.pitch = Math.max(
+          -Math.PI / 2 + 0.01,
+          Math.min(Math.PI / 2 - 0.01, this.pitch)
+        );
+
+        // Keep targets in sync
+        this.targetYaw = this.yaw;
+        this.targetPitch = this.pitch;
+      } else if (hasManualInput) {
+        // Mouse: Apply to targets with smoothing for precise control (only if there's input)
+        this.targetYaw -= cameraInput.x;
+        this.targetPitch -= cameraInput.y;
+        this.targetPitch = Math.max(
+          -Math.PI / 2 + 0.01,
+          Math.min(Math.PI / 2 - 0.01, this.targetPitch)
+        );
+
+        // Smooth camera rotation to reduce jitter
+        this.yaw += (this.targetYaw - this.yaw) * this.cameraSmoothingFactor;
+        this.pitch +=
+          (this.targetPitch - this.pitch) * this.cameraSmoothingFactor;
+      } else {
+        // No manual input, still apply smoothing if there's a difference
+        this.yaw += (this.targetYaw - this.yaw) * this.cameraSmoothingFactor;
+        this.pitch +=
+          (this.targetPitch - this.pitch) * this.cameraSmoothingFactor;
+      }
+
+      // Reset frame input after processing
+      this.inputManager.resetFrameInput();
     }
 
     // Input -> desired velocity in XZ plane (disabled during look-at)
     let isMoving = false;
+    let isSprinting = false;
     if (!this.inputDisabled) {
       const { forward, right } = this.getForwardRightVectors();
-      const moveSpeed = this.keys.shift
+      const movementInput = this.inputManager.getMovementInput();
+      isSprinting = this.inputManager.isSprinting();
+      const moveSpeed = isSprinting
         ? this.baseSpeed * this.sprintMultiplier
         : this.baseSpeed;
       const desired = new THREE.Vector3();
-      if (this.keys.w) desired.add(forward);
-      if (this.keys.s) desired.sub(forward);
-      if (this.keys.a) desired.sub(right);
-      if (this.keys.d) desired.add(right);
+
+      // Apply movement input (y is forward/back, x is left/right)
+      desired.add(forward.clone().multiplyScalar(movementInput.y));
+      desired.add(right.clone().multiplyScalar(movementInput.x));
+
       isMoving = desired.lengthSq() > 1e-6;
       if (isMoving) desired.normalize().multiplyScalar(moveSpeed);
 
@@ -770,7 +1096,7 @@ class CharacterController {
     }
 
     // Update breathing system
-    const movementIntensity = this.keys.shift ? 1.0 : 0.5;
+    const movementIntensity = isSprinting ? 1.0 : 0.5;
     this.breathingSystem.update(dt, isMoving, movementIntensity);
 
     // Update footstep audio
@@ -790,14 +1116,14 @@ class CharacterController {
 
       // Adjust playback rate based on sprint
       if (this.isPlayingFootsteps) {
-        const playbackRate = this.keys.shift ? 1.5 : 1.0;
+        const playbackRate = isSprinting ? 1.5 : 1.0;
         this.footstepSound.rate(playbackRate);
       }
     }
 
     // Calculate headbob offset (movement + idle)
     const movementHeadbob = this.headbobEnabled
-      ? this.calculateHeadbob(this.keys.shift)
+      ? this.calculateHeadbob(isSprinting)
       : { vertical: 0, horizontal: 0 };
     const idleHeadbob = this.headbobEnabled
       ? this.calculateIdleHeadbob()

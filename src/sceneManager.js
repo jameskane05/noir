@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { SplatMesh } from "@sparkjsdev/spark";
+import { checkPlayOn, checkStopOn } from "./criteriaHelper.js";
 
 /**
  * SceneManager - Manages scene objects (splats, GLTF models, etc.)
@@ -576,20 +577,17 @@ class SceneManager {
 
   /**
    * Update animations based on game state
+   * Supports both array format and criteria object format for playOn/stopOn.
    * @param {Object} gameState - Current game state
    */
   updateAnimationsForState(gameState) {
     if (!gameState || !gameState.currentState) return;
 
-    const currentState = gameState.currentState;
-    const matchesToken = (token) =>
-      token === currentState || gameState[token] === true;
-
     for (const [animationId, config] of this.animationData) {
       if (!config.autoPlay) continue;
 
-      const shouldPlay = config.playOn && config.playOn.some(matchesToken);
-      const shouldStop = config.stopOn && config.stopOn.some(matchesToken);
+      const shouldPlay = config.playOn && checkPlayOn(gameState, config.playOn);
+      const shouldStop = config.stopOn && checkStopOn(gameState, config.stopOn);
       const isPlaying = this.isAnimationPlaying(animationId);
 
       if (shouldStop && isPlaying) {
