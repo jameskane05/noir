@@ -72,28 +72,6 @@ class GameManager {
   }
 
   /**
-   * Check if intro sequence should be skipped
-   * @returns {boolean} True if intro should be skipped
-   */
-  shouldSkipIntro() {
-    // Skip intro if in debug mode OR if legacy location=spawn param is used
-    if (this.isDebugMode) {
-      return true;
-    }
-
-    const location = this.getURLParam("location");
-    return location === "spawn";
-  }
-
-  /**
-   * Check if running in debug mode
-   * @returns {boolean}
-   */
-  isInDebugMode() {
-    return this.isDebugMode;
-  }
-
-  /**
    * Get the debug spawn character position if in debug mode
    * @returns {Object|null} Position {x, y, z} or null
    */

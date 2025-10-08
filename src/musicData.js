@@ -7,7 +7,7 @@
  * - id: Unique identifier
  * - path: Path to the audio file
  * - description: Human-readable description
- * - requiresState: Optional object with key-value pairs that must match game state
+ * - criteria: Optional object with key-value pairs that must match game state
  *   - Example: { titleSequenceComplete: true }
  * - activationCondition: Optional function that receives gameState and returns true if track should play
  *   - Example: (state) => state.chapter === 2 && state.hasSeenEnding === false
@@ -26,7 +26,7 @@ export const musicTracks = {
     id: "rach2",
     path: "./audio/music/rach 3 - mv 2 - 1-00.mp3",
     description: "Rachmaninoff 3 - Movement 2 (1:00) - Intro sequence",
-    requiresState: { currentState: GAME_STATES.START_SCREEN },
+    criteria: { currentState: GAME_STATES.START_SCREEN },
     fadeTime: 2.0,
     priority: 100,
   },
@@ -34,7 +34,7 @@ export const musicTracks = {
     id: "rachDriveBy",
     path: "./audio/music/rach 3 - mv 2 - 4-30.mp3",
     description: "Rachmaninoff 3 - Movement 2 (4:30) - Drive-by sequence",
-    requiresState: { currentState: GAME_STATES.DRIVE_BY },
+    criteria: { currentState: GAME_STATES.DRIVE_BY },
     fadeTime: 1.0,
     priority: 90,
   },
@@ -62,10 +62,10 @@ export function getMusicForState(gameState) {
   );
 
   for (const track of sortedTracks) {
-    // Check requiresState (simple key-value matching)
-    if (track.requiresState) {
+    // Check criteria (simple key-value matching)
+    if (track.criteria) {
       let stateMatches = true;
-      for (const [key, value] of Object.entries(track.requiresState)) {
+      for (const [key, value] of Object.entries(track.criteria)) {
         if (gameState[key] !== value) {
           stateMatches = false;
           break;

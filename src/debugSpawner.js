@@ -11,6 +11,7 @@ import { GAME_STATES, startScreen } from "./gameData.js";
  * - START_SCREEN (default)
  * - TITLE_SEQUENCE
  * - TITLE_SEQUENCE_COMPLETE
+ * - INTRO_COMPLETE
  * - PHONE_BOOTH_RINGING
  * - ANSWERED_PHONE
  */
@@ -38,6 +39,15 @@ export const debugStatePresets = {
   TITLE_SEQUENCE_COMPLETE: {
     ...startScreen,
     currentState: GAME_STATES.TITLE_SEQUENCE_COMPLETE,
+    controlEnabled: true,
+    cityAmbiance: true,
+    playerPosition: { x: 10, y: 0.9, z: 15 },
+  },
+
+  INTRO_COMPLETE: {
+    ...startScreen,
+    currentState: GAME_STATES.INTRO_COMPLETE,
+    isPlaying: true,
     controlEnabled: true,
     cityAmbiance: true,
     playerPosition: { x: 10, y: 0.9, z: 15 },

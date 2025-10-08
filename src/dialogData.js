@@ -77,6 +77,10 @@ export const dialogSequences = {
     autoPlay: true,
     priority: 100,
     delay: 1.0, // Wait 1 second after title sequence completes
+    onComplete: (gameManager) => {
+      console.log("INTRO dialog complete - setting state to INTRO_COMPLETE");
+      gameManager.setState({ currentState: GAME_STATES.INTRO_COMPLETE });
+    },
   },
 
   // Dialog that plays when phone starts ringing

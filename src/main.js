@@ -158,9 +158,9 @@ const optionsMenu = new OptionsMenu({
   characterController: characterController,
 });
 
-// Initialize start screen (only if not skipping)
+// Initialize start screen only if we're in START_SCREEN state
 let startScreen = null;
-if (!gameManager.shouldSkipIntro()) {
+if (gameManager.state.currentState === GAME_STATES.START_SCREEN) {
   startScreen = new StartScreen(camera, scene, {
     circleCenter: new THREE.Vector3(12, 0, 5), // Center point of the circular path
     circleRadius: 12,
@@ -170,17 +170,6 @@ if (!gameManager.shouldSkipIntro()) {
     targetRotation: { yaw: THREE.MathUtils.degToRad(-230), pitch: 0 },
     transitionDuration: 8.0,
     uiManager: uiManager,
-  });
-
-  // Set game state - this will trigger appropriate music and SFX
-  gameManager.setState({
-    currentState: GAME_STATES.START_SCREEN,
-  });
-} else {
-  // Spawn: treat as after-title-sequence state so dialog auto-plays
-  gameManager.setState({
-    currentState: GAME_STATES.TITLE_SEQUENCE_COMPLETE,
-    controlEnabled: true,
   });
 }
 
@@ -250,6 +239,9 @@ const idleHelper = new IdleHelper(
   dialogChoiceUI,
   gameManager
 );
+
+// Wire up idle helper to character controller for glance system
+characterController.setIdleHelper(idleHelper);
 
 // Global escape key handler for options menu (only works when game is active, not during intro)
 // Track ESC key press time to distinguish between quick press (menu) and held (exit fullscreen)

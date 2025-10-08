@@ -20,7 +20,7 @@
  * - enabled: If false, collider is inactive (default: true)
  * - activationCondition: Optional function that receives gameState and returns true if collider should be active
  *   - Example: (state) => state.hasMetCharacter === true
- * - requiresState: Optional object with key-value pairs that must match game state
+ * - criteria: Optional object with key-value pairs that must match game state
  *   - Example: { introComplete: true, chapter: 1 }
  *
  * Event Types:
@@ -88,7 +88,7 @@ export const colliders = [
     once: true, // Triggers once then cleans itself up
     enabled: true,
     // Optional: Activation conditions
-    // requiresState: { titleComplete: true }, // Simple key-value check
+    // criteria: { titleComplete: true }, // Simple key-value check
     // activationCondition: (state) => state.isPlaying === true, // Custom function
   },
 
@@ -108,7 +108,7 @@ export const colliders = [
     onExit: [],
     once: true,
     enabled: true,
-    requiresState: { currentState: GAME_STATES.PHONE_BOOTH_RINGING }, // Only activates after phone starts ringing
+    criteria: { currentState: GAME_STATES.PHONE_BOOTH_RINGING }, // Only activates after phone starts ringing
   },
 
   // Add your colliders here...

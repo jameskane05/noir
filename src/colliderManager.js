@@ -163,9 +163,9 @@ class ColliderManager {
   checkActivationConditions(data) {
     const gameState = this.gameManager.getState();
 
-    // Check requiresState (simple key-value matching)
-    if (data.requiresState) {
-      for (const [key, value] of Object.entries(data.requiresState)) {
+    // Check criteria (simple key-value matching)
+    if (data.criteria) {
+      for (const [key, value] of Object.entries(data.criteria)) {
         if (gameState[key] !== value) {
           return false;
         }

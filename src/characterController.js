@@ -8,13 +8,15 @@ class CharacterController {
     camera,
     renderer,
     sfxManager = null,
-    sparkRenderer = null
+    sparkRenderer = null,
+    idleHelper = null
   ) {
     this.character = character;
     this.camera = camera;
     this.renderer = renderer;
     this.sfxManager = sfxManager;
     this.sparkRenderer = sparkRenderer;
+    this.idleHelper = idleHelper;
 
     // Movement state
     this.keys = { w: false, a: false, s: false, d: false, shift: false };
@@ -68,16 +70,19 @@ class CharacterController {
     this.headbobEnabled = true;
 
     // Idle glance system
-    this.glanceEnabled = false; // Disabled for now - can re-enable later
-    this.idleTime = 0; // Time spent idle
+    this.glanceEnabled = true; // Enable idle look-around behavior
     this.glanceState = null; // null, 'glancing', 'returning'
     this.glanceProgress = 0; // 0 to 1
-    this.glanceDuration = 1.2; // Duration of one glance animation (slower)
-    this.glanceTimer = 3.0; // Time until next glance (starts at 3 seconds)
+    this.glanceDuration = 5.0; // Duration of one glance animation (set randomly per glance)
+    this.glanceTimer = 0; // Time until next glance (0 = start immediately when idle)
+    this.wasIdleAllowed = false; // Track previous idle state for edge detection
     this.glanceStartYaw = 0;
     this.glanceTargetYaw = 0;
     this.glanceStartPitch = 0;
     this.glanceTargetPitch = 0;
+    this.glanceStartRoll = 0;
+    this.glanceTargetRoll = 0;
+    this.currentRoll = 0; // Current head tilt
 
     // Audio
     this.audioListener = new THREE.AudioListener();
@@ -106,6 +111,14 @@ class CharacterController {
 
     this.setupInputListeners();
     this.loadFootstepAudio();
+  }
+
+  /**
+   * Set the idle helper reference (called after initialization)
+   * @param {IdleHelper} idleHelper - The idle helper instance
+   */
+  setIdleHelper(idleHelper) {
+    this.idleHelper = idleHelper;
   }
 
   /**
@@ -258,8 +271,9 @@ class CharacterController {
 
     // Reset glance state
     this.glanceState = null;
-    this.idleTime = 0;
-    this.glanceTimer = 3.0;
+    this.glanceTimer = 0;
+    this.wasIdleAllowed = false;
+    this.currentRoll = 0; // Reset head tilt
 
     if (updateYawPitch) {
       // Update yaw and pitch to match current camera orientation
@@ -476,13 +490,17 @@ class CharacterController {
   }
 
   /**
-   * Start a glance animation (look left/right and slightly up/down)
+   * Start a glance animation (look left/right and slightly up/down with head tilt)
    */
   startGlance() {
     this.glanceState = "glancing";
     this.glanceProgress = 0;
     this.glanceStartYaw = this.yaw;
     this.glanceStartPitch = this.pitch;
+    this.glanceStartRoll = this.currentRoll;
+
+    // Random duration for this glance (3-7 seconds)
+    this.glanceDuration = 3.0 + Math.random() * 4.0;
 
     // Random horizontal direction and angle
     const horizontalDir = Math.random() > 0.5 ? 1 : -1;
@@ -492,6 +510,11 @@ class CharacterController {
     // Random vertical angle (slight up or down)
     const verticalAngle = Math.random() * 0.15 - 0.075; // -0.075 to 0.075 radians (~-4 to 4 degrees)
     this.glanceTargetPitch = this.pitch + verticalAngle;
+
+    // Subtle head tilt (roll) that follows the horizontal direction
+    // Tilt slightly in the direction of the glance for natural head movement
+    const rollAngle = (Math.random() * 0.3 + 0.04) * horizontalDir; // 0.04 to 0.12 radians (~2 to 7 degrees)
+    this.glanceTargetRoll = rollAngle;
 
     // Clamp pitch to valid range
     this.glanceTargetPitch = Math.max(
@@ -506,19 +529,28 @@ class CharacterController {
    * @param {boolean} isMoving - Whether the player is moving
    */
   updateIdleGlance(dt, isMoving) {
-    // Skip if glance system is disabled
-    if (!this.glanceEnabled) return;
+    // Skip if glance system is disabled or no idle helper
+    if (!this.glanceEnabled || !this.idleHelper) return;
 
-    // Reset idle time if moving or input is disabled
-    if (isMoving || this.inputDisabled) {
-      this.idleTime = 0;
-      this.glanceState = null;
-      this.glanceTimer = 3.0; // Reset to initial 3 seconds
-      return;
+    // Use IdleHelper to check if idle behaviors should be allowed
+    const shouldAllowIdle = this.idleHelper.shouldAllowIdleBehavior();
+
+    // Detect when idle state becomes allowed (edge trigger)
+    if (shouldAllowIdle && !this.wasIdleAllowed) {
+      // Just became idle - start glance immediately
+      this.glanceTimer = 0;
     }
 
-    // Accumulate idle time
-    this.idleTime += dt;
+    // Update previous idle state
+    this.wasIdleAllowed = shouldAllowIdle;
+
+    // Reset and stop glance if not allowed or if moving
+    if (!shouldAllowIdle || isMoving || this.inputDisabled) {
+      this.glanceState = null;
+      this.glanceTimer = 0; // Reset timer for next idle period
+      this.currentRoll = 0; // Reset head tilt
+      return;
+    }
 
     // Update glance animation if glancing
     if (this.glanceState === "glancing") {
@@ -533,13 +565,16 @@ class CharacterController {
         const t = this.glanceProgress;
         const easedT = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
 
-        // Interpolate yaw and pitch
+        // Interpolate yaw, pitch, and roll
         this.targetYaw =
           this.glanceStartYaw +
           (this.glanceTargetYaw - this.glanceStartYaw) * easedT;
         this.targetPitch =
           this.glanceStartPitch +
           (this.glanceTargetPitch - this.glanceStartPitch) * easedT;
+        this.currentRoll =
+          this.glanceStartRoll +
+          (this.glanceTargetRoll - this.glanceStartRoll) * easedT;
       }
     } else if (this.glanceState === "returning") {
       // Return to start position at the same speed
@@ -549,11 +584,12 @@ class CharacterController {
         // Return complete - reset state
         this.glanceProgress = 1.0;
         this.glanceState = null;
-        this.glanceTimer = 4.0 + Math.random() * 2.0; // Next glance in 4-6 seconds
+        this.glanceTimer = 5.0 + Math.random() * 3.0; // Next glance in 5-8 seconds
 
         // Ensure we're back at start
         this.targetYaw = this.glanceStartYaw;
         this.targetPitch = this.glanceStartPitch;
+        this.currentRoll = 0; // Return to no tilt
       } else {
         // Animate return with ease-in-out
         const t = this.glanceProgress;
@@ -566,15 +602,15 @@ class CharacterController {
         this.targetPitch =
           this.glanceTargetPitch +
           (this.glanceStartPitch - this.glanceTargetPitch) * easedT;
+        this.currentRoll =
+          this.glanceTargetRoll + (0 - this.glanceTargetRoll) * easedT; // Return to 0 tilt
       }
     } else {
-      // Count down to next glance
-      if (this.idleTime >= 3.0) {
-        this.glanceTimer -= dt;
+      // Count down to next glance (only when idle is allowed)
+      this.glanceTimer -= dt;
 
-        if (this.glanceTimer <= 0) {
-          this.startGlance();
-        }
+      if (this.glanceTimer <= 0) {
+        this.startGlance();
       }
     }
   }
@@ -644,8 +680,9 @@ class CharacterController {
 
         // Reset glance state
         this.glanceState = null;
-        this.idleTime = 0;
-        this.glanceTimer = 3.0;
+        this.glanceTimer = 0;
+        this.wasIdleAllowed = false;
+        this.currentRoll = 0; // Reset head tilt
 
         // Start DoF hold timer (don't immediately return to base)
         if (this.sparkRenderer && this.lookAtDofActive) {
@@ -787,7 +824,7 @@ class CharacterController {
     // Build look direction from yaw/pitch (only when not in look-at mode)
     if (!this.isLookingAt) {
       const lookDir = new THREE.Vector3(0, 0, -1).applyEuler(
-        new THREE.Euler(this.pitch, this.yaw, 0, "YXZ")
+        new THREE.Euler(this.pitch, this.yaw, this.currentRoll, "YXZ")
       );
       const lookTarget = new THREE.Vector3()
         .copy(this.camera.position)

@@ -12,7 +12,7 @@
  * - criteria: Optional object with key-value pairs that must match game state
  * - activationCondition: Optional function that receives gameState and returns true if video should play
  * - autoPlay: If true, automatically play when conditions are met (default: false)
- * - playOnStates: Array of game states where this video should play
+ * - playOn: Array of game states where this video should play
  * - once: If true, only play once (tracked automatically)
  * - priority: Higher priority videos are checked first (default: 0)
  * - onComplete: Optional function called when video ends, receives gameManager
@@ -40,7 +40,7 @@ export const videos = {
     scale: [3, 3, 3],
     loop: true,
     billboard: true,
-    playOnStates: [GAME_STATES.TITLE_SEQUENCE_COMPLETE],
+    playOn: [GAME_STATES.TITLE_SEQUENCE_COMPLETE],
     autoPlay: true,
     once: false,
     priority: 0,
@@ -55,10 +55,7 @@ export const videos = {
 export function getVideosForState(gameState) {
   return Object.values(videos).filter((video) => {
     // Check if video should play on current state
-    if (
-      video.playOnStates &&
-      video.playOnStates.includes(gameState.currentState)
-    ) {
+    if (video.playOn && video.playOn.includes(gameState.currentState)) {
       // Check criteria if specified
       if (video.criteria) {
         return Object.keys(video.criteria).every(

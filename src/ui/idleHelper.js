@@ -102,6 +102,44 @@ export class IdleHelper {
     }
   }
 
+  /**
+   * Check if idle behaviors should be allowed (glances, etc.)
+   * @returns {boolean} True if player is idle and no blocking conditions are active
+   */
+  shouldAllowIdleBehavior() {
+    // Check if controls are enabled
+    const isControlEnabled =
+      this.gameManager && this.gameManager.isControlEnabled();
+
+    if (!isControlEnabled || this.lastMovementTime === null) {
+      return false;
+    }
+
+    // Check time since last movement
+    const timeSinceLastMovement = Date.now() - this.lastMovementTime;
+    if (timeSinceLastMovement < this.idleThreshold) {
+      return false;
+    }
+
+    // Check blocking conditions
+    const isDialogPlaying = this.dialogManager && this.dialogManager.isPlaying;
+    const hasPendingDialog =
+      this.dialogManager &&
+      this.dialogManager.pendingDialogs &&
+      this.dialogManager.pendingDialogs.size > 0;
+    const isCameraAnimating =
+      this.cameraAnimationSystem && this.cameraAnimationSystem.isPlaying;
+    const isChoiceUIOpen = this.dialogChoiceUI && this.dialogChoiceUI.isVisible;
+
+    // Return true only if no blocking conditions are active
+    return (
+      !isDialogPlaying &&
+      !hasPendingDialog &&
+      !isCameraAnimating &&
+      !isChoiceUIOpen
+    );
+  }
+
   interruptWithFadeOut() {
     // Cancel the current animation
     if (this.currentAnimation) {

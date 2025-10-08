@@ -12,7 +12,7 @@
  * - scale: Uniform scale or [x, y, z] array
  * - description: Human-readable description
  * - options: Type-specific options
- * - requiresState: Optional object with key-value pairs that must match game state
+ * - criteria: Optional object with key-value pairs that must match game state
  *   - Example: { currentState: GAME_STATES.CHAPTER_2 }
  * - activationCondition: Optional function that receives gameState and returns true if object should load
  *   - Example: (state) => state.chapter >= 2
@@ -95,10 +95,10 @@ export function getSceneObjectsForState(gameState) {
       continue;
     }
 
-    // Check requiresState (simple key-value matching)
-    if (obj.requiresState) {
+    // Check criteria (simple key-value matching)
+    if (obj.criteria) {
       let stateMatches = true;
-      for (const [key, value] of Object.entries(obj.requiresState)) {
+      for (const [key, value] of Object.entries(obj.criteria)) {
         if (gameState[key] !== value) {
           stateMatches = false;
           break;
