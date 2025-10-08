@@ -316,6 +316,14 @@ class VideoPlayer {
       this.isPlaying = false;
     });
 
+    // Use requestVideoFrameCallback for efficient frame updates (only draw when new frame available)
+    if ("requestVideoFrameCallback" in HTMLVideoElement.prototype) {
+      this.useVideoFrameCallback = true;
+      this.pendingVideoFrame = false;
+    } else {
+      this.useVideoFrameCallback = false;
+    }
+
     this.isInitialized = true;
   }
 
@@ -332,9 +340,47 @@ class VideoPlayer {
       }
 
       await this.video.play();
+
+      // Start video frame callback loop if supported
+      if (this.useVideoFrameCallback && !this.pendingVideoFrame) {
+        this.scheduleVideoFrameCallback();
+      }
     } catch (error) {
       console.error("VideoPlayer: Failed to play video", error);
     }
+  }
+
+  /**
+   * Schedule next video frame callback
+   */
+  scheduleVideoFrameCallback() {
+    if (!this.video || !this.useVideoFrameCallback) return;
+
+    this.pendingVideoFrame = true;
+    this.video.requestVideoFrameCallback(() => {
+      this.pendingVideoFrame = false;
+
+      // Draw the new frame
+      if (
+        this.canvasReady &&
+        this.isPlaying &&
+        this.video.readyState >= this.video.HAVE_CURRENT_DATA
+      ) {
+        this.canvasContext.clearRect(
+          0,
+          0,
+          this.canvas.width,
+          this.canvas.height
+        );
+        this.canvasContext.drawImage(this.video, 0, 0);
+        this.videoTexture.needsUpdate = true;
+      }
+
+      // Schedule next frame if still playing
+      if (this.isPlaying) {
+        this.scheduleVideoFrameCallback();
+      }
+    });
   }
 
   /**
@@ -354,6 +400,7 @@ class VideoPlayer {
       this.video.pause();
       this.video.currentTime = 0;
       this.isPlaying = false;
+      this.pendingVideoFrame = false; // Cancel any pending frame callback
     }
   }
 
@@ -397,16 +444,24 @@ class VideoPlayer {
    * Update method - call in animation loop
    */
   update(dt) {
-    // Draw video to canvas to extract alpha channel (for WebM alpha support)
-    if (
-      this.canvasReady &&
-      this.isPlaying &&
-      this.video &&
-      this.video.readyState >= this.video.HAVE_CURRENT_DATA
-    ) {
-      this.canvasContext.clearRect(0, 0, this.canvas.width, this.canvas.height);
-      this.canvasContext.drawImage(this.video, 0, 0);
-      this.videoTexture.needsUpdate = true;
+    // Draw video to canvas only if not using video frame callback
+    // (If using callback, frames are drawn in scheduleVideoFrameCallback instead)
+    if (!this.useVideoFrameCallback) {
+      if (
+        this.canvasReady &&
+        this.isPlaying &&
+        this.video &&
+        this.video.readyState >= this.video.HAVE_CURRENT_DATA
+      ) {
+        this.canvasContext.clearRect(
+          0,
+          0,
+          this.canvas.width,
+          this.canvas.height
+        );
+        this.canvasContext.drawImage(this.video, 0, 0);
+        this.videoTexture.needsUpdate = true;
+      }
     }
 
     // Billboard to camera if enabled (Y-axis only)

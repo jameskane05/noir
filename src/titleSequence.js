@@ -91,17 +91,17 @@ export class TitleSequence {
         dyno.unindentLines(`
         ${outputs.gsplat} = ${inputs.gsplat};
         
-        // Position-based delay for wave effects
-        // Intro: right to left (more pronounced)
-        float introWaveDelay = (${outputs.gsplat}.center.x - 10.0) * -0.2;
-        // Outro: left to right
-        float outroWaveDelay = (${outputs.gsplat}.center.x + 10.0) * 0.1;
+        float id = float(${inputs.gsplat}.index);
         
-        float localTime = ${inputs.globalTime} - ${inputs.startTime} - introWaveDelay;
+        // ID-based delay for wave effects (predictable, independent of camera position)
+        // Use hash to create smooth wave pattern across particles
+        float waveOffset = hash13(vec3(id * 0.05, id * 0.03, 0.0)) * 0.3;
+        
+        float localTime = ${inputs.globalTime} - ${inputs.startTime} - waveOffset;
         float introEnd = ${inputs.introDuration};
         
         // Outro uses global time with wave effect
-        float outroTime = ${inputs.globalTime} - ${inputs.outroStartTime} - outroWaveDelay;
+        float outroTime = ${inputs.globalTime} - ${inputs.outroStartTime} - waveOffset;
         
         float phase = 1.0; // 0=pre-intro, 1=visible, 2=post-outro
         float t = 0.0;
@@ -123,33 +123,27 @@ export class TitleSequence {
           phase = 0.0;
         }
         
-        // Calculate dispersion - wind-driven effect
-        float id = float(${inputs.gsplat}.index);
-        
+        // Calculate dispersion - wind-driven effect (all ID-based, no position dependency)
         // Main wind direction - reverse for outro
         vec3 windDir = phase == 2.0 
-          ? normalize(vec3(-1.0, 0.3, -0.5))  // Outro: opposite direction
-          : normalize(vec3(1.0, 0.3, 0.5));    // Intro: original direction
+          ? vec3(-1.0, 0.3, -0.5)  // Outro: opposite direction
+          : vec3(1.0, 0.3, 0.5);    // Intro: original direction
         
-        // Add turbulence per particle (small random variation)
+        // Add turbulence per particle (small random variation, ID-based only)
         vec3 turbulence = vec3(
           hash13(vec3(id * 0.1, id * 0.2, id * 0.3)) * 0.4 - 0.2,
           hash13(vec3(id * 0.3, id * 0.4, id * 0.5)) * 0.4 - 0.2,
           hash13(vec3(id * 0.5, id * 0.6, id * 0.7)) * 0.4 - 0.2
         );
         
-        // Position-based offset (subtle letter structure)
-        vec3 posOffset = normalize(
-          ${outputs.gsplat}.center + 
-          vec3(
-            hash13(${outputs.gsplat}.center + vec3(id)),
-            hash13(${outputs.gsplat}.center.yzx + vec3(id)),
-            hash13(${outputs.gsplat}.center.zxy + vec3(id))
-          ) - 0.5
-        ) * 0.2;
+        // ID-based offset (no position dependency)
+        float h1 = hash13(vec3(id * 0.11, id * 0.22, id * 0.33));
+        float h2 = hash13(vec3(id * 0.44, id * 0.55, id * 0.66));
+        float h3 = hash13(vec3(id * 0.77, id * 0.88, id * 0.99));
+        vec3 idOffset = vec3(h1 * 2.0 - 1.0, h2 * 2.0 - 1.0, h3 * 2.0 - 1.0) * 0.2;
         
-        // Combine: strong wind + turbulence + slight position offset
-        vec3 disperseDir = normalize(windDir + turbulence + posOffset);
+        // Combine: strong wind + turbulence + ID-based offset
+        vec3 disperseDir = normalize(windDir + turbulence + idOffset);
         
         // Add random distance variation per particle
         float randomDist = 0.7 + hash13(vec3(id * 0.7, id * 0.8, id * 0.9)) * 0.6;
