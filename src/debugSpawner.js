@@ -16,56 +16,47 @@ import { GAME_STATES, startScreen } from "./gameData.js";
 const stateOverrides = {
   START_SCREEN: {
     controlEnabled: false,
-    cityAmbiance: false,
-    playerPosition: { x: 10, y: 0.9, z: 15 }, // Default spawn
+    // No playerPosition - use main.js default
   },
 
   TITLE_SEQUENCE: {
     controlEnabled: false,
-    cityAmbiance: true,
-    playerPosition: { x: 10, y: 0.9, z: 15 },
+    // No playerPosition - use main.js default
   },
 
   TITLE_SEQUENCE_COMPLETE: {
     controlEnabled: true,
-    cityAmbiance: true,
-    playerPosition: { x: 10, y: 0.9, z: 15 },
+    // No playerPosition - use main.js default
   },
 
   INTRO_COMPLETE: {
     isPlaying: true,
     controlEnabled: true,
-    cityAmbiance: true,
-    playerPosition: { x: 10, y: 0.9, z: 15 },
+    // No playerPosition - use main.js default
   },
 
   PHONE_BOOTH_RINGING: {
     controlEnabled: true,
-    cityAmbiance: true,
     playerPosition: { x: 10, y: 0.9, z: 40 }, // Near phone booth
   },
 
   ANSWERED_PHONE: {
     controlEnabled: true,
-    cityAmbiance: true,
     playerPosition: { x: 7, y: 0.9, z: 42 }, // At phone booth
   },
 
   DIALOG_CHOICE_1: {
     controlEnabled: true,
-    cityAmbiance: true,
     playerPosition: { x: 7, y: 0.9, z: 42 }, // At phone booth
   },
 
   DRIVE_BY_PREAMBLE: {
     controlEnabled: true,
-    cityAmbiance: true,
     playerPosition: { x: 7, y: 0.9, z: 42 }, // At phone booth
   },
 
   DRIVE_BY: {
     controlEnabled: true,
-    cityAmbiance: true,
     playerPosition: { x: 7, y: 0.9, z: 42 }, // At phone booth
   },
 };
@@ -77,11 +68,10 @@ const stateOverrides = {
  */
 function createDefaultPreset(stateValue) {
   return {
-    ...startScreen,
+    ...startScreen, // Includes playerPosition: {x:0, y:0, z:0} from startScreen
     currentState: stateValue,
     controlEnabled: true,
-    cityAmbiance: true,
-    playerPosition: { x: 10, y: 0.9, z: 15 }, // Default spawn
+    // playerPosition can be overridden to undefined to use main.js default
   };
 }
 

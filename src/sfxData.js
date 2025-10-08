@@ -11,7 +11,7 @@
  * - criteria: Optional object with key-value pairs that must match game state for sound to play
  *   - Simple equality: { currentState: GAME_STATES.PHONE_BOOTH_RINGING }
  *   - Comparison operators: { currentState: { $gte: GAME_STATES.INTRO, $lt: GAME_STATES.DRIVE_BY } }
- *   - Multiple conditions: { currentState: GAME_STATES.INTRO, cityAmbiance: true }
+ *   - Multiple conditions: { currentState: GAME_STATES.INTRO, testCondition: true }
  *   - Operators: $eq, $ne, $gt, $gte, $lt, $lte, $in, $nin
  *   - If criteria matches and sound is not playing → play it
  *   - If criteria doesn't match and sound is playing → stop it

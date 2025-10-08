@@ -36,16 +36,12 @@ export const startScreen = {
 
   // Scene and world
   currentScene: null,
-  playerPosition: { x: 0, y: 0, z: 0 },
 
   // High-level state name
   currentState: GAME_STATES.START_SCREEN,
 
   // Control flow
   controlEnabled: false, // When true, character controller updates/inputs are enabled
-
-  // Audio ambience (drives SFX via gameManager.updateSFXForState)
-  cityAmbiance: false,
 
   // Display state
   isFullscreen: false, // When true, the app is in fullscreen mode
@@ -62,7 +58,6 @@ export const stateDescriptions = {
   currentState: "High-level app state (e.g., 'startScreen', 'titleSequence').",
   controlEnabled: "Enables character controller updates and input.",
   titleSequenceComplete: "Set true when title sequence completes.",
-  cityAmbiance: "When true, city ambiance SFX should be playing.",
   isFullscreen: "True when app is in fullscreen mode.",
 };
 

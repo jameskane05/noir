@@ -113,7 +113,7 @@ class CharacterController {
     // Settings
     this.baseSpeed = 4.0;
     this.sprintMultiplier = 1.75; // Reduced from 2.0 (30% slower sprint)
-    this.cameraHeight = 1.6;
+    this.cameraHeight = 0.8; // Distance from capsule center to top (halfHeight + radius)
     this.cameraSmoothingFactor = 0.15;
 
     // Initialize FOV from camera

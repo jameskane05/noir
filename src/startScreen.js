@@ -348,14 +348,13 @@ export class StartScreen {
   /**
    * Monitor start screen for start button click and trigger title sequence
    */
-  checkIntroStart(cityAmbianceSound, sfxManager, gameManager) {
+  checkIntroStart(sfxManager, gameManager) {
     if (!this.hasStarted) return; // Skip if start button not clicked
 
     if (this.hasStarted && !this.introStartTriggered) {
       this.introStartTriggered = true;
 
       // Ensure ambiance is on and attempt playback on first interaction
-      gameManager.setState({ cityAmbiance: true });
       if (sfxManager && !sfxManager.isPlaying("city-ambiance")) {
         sfxManager.play("city-ambiance");
       }

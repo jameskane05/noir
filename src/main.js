@@ -12,7 +12,7 @@ import OptionsMenu from "./ui/optionsMenu.js";
 import DialogManager from "./dialogManager.js";
 import DialogChoiceUI from "./ui/dialogChoiceUI.js";
 import GameManager from "./gameManager.js";
-import UIManager from "./uiManager.js";
+import UIManager from "./ui/uiManager.js";
 import ColliderManager from "./colliderManager.js";
 import SceneManager from "./sceneManager.js";
 import colliders from "./colliderData.js";
@@ -92,15 +92,23 @@ const physicsManager = new PhysicsManager();
 const gameManager = new GameManager();
 
 // Create character rigid body (capsule)
-// Capsule: halfHeight=0.5, radius=0.3, center to bottom = 0.8
-// Floor top at Y=0.1, so character center at Y=0.9 to rest on ground
-// Camera will be at Y=0.9+1.6=2.5
+// Capsule: halfHeight=0.5, radius=0.3, total height = 1.6m
+// Floor top at Y=0.1, character center at Y=0.9 (rests on ground)
+// Camera at top of capsule: Y=0.9+0.8=1.7 (1.6m off ground)
 // Use debug spawn position if available, otherwise default
-const spawnPos = gameManager.getDebugSpawnPosition() || {
-  x: 10,
-  y: 0.9,
-  z: 15,
+const debugSpawnPos = gameManager.getDebugSpawnPosition();
+console.log("Debug spawn position:", debugSpawnPos);
+console.log(
+  "Game manager state.playerPosition:",
+  gameManager.state.playerPosition
+);
+console.log("Is debug mode:", gameManager.isDebugMode);
+const spawnPos = debugSpawnPos || {
+  x: -20.412734985351562,
+  y: 0.9, // Character center height to rest on floor (floor top at Y=0.1, capsule bottom 0.8 below center)
+  z: -175.3896026611328,
 };
+console.log("Final spawn position:", spawnPos);
 const character = physicsManager.createCharacter(spawnPos, {
   x: 0,
   y: -120,
@@ -174,12 +182,19 @@ const optionsMenu = new OptionsMenu({
 // Initialize start screen only if we're in START_SCREEN state
 let startScreen = null;
 if (gameManager.state.currentState === GAME_STATES.START_SCREEN) {
+  // Calculate camera target position based on actual character spawn
+  const cameraTargetPos = new THREE.Vector3(
+    spawnPos.x,
+    spawnPos.y + characterController.cameraHeight, // Character Y + camera offset
+    spawnPos.z
+  );
+
   startScreen = new StartScreen(camera, scene, {
     circleCenter: new THREE.Vector3(12, 0, 5), // Center point of the circular path
     circleRadius: 12,
     circleHeight: 8,
     circleSpeed: 0.05,
-    targetPosition: new THREE.Vector3(10, 2.5, 15), // Match character Y (0.9) + cameraHeight (1.6)
+    targetPosition: cameraTargetPos,
     targetRotation: { yaw: THREE.MathUtils.degToRad(-230), pitch: 0 },
     transitionDuration: 8.0,
     uiManager: uiManager,
@@ -308,7 +323,7 @@ renderer.setAnimationLoop(function animate(time) {
   // Update start screen (camera animation and transition)
   if (startScreen && startScreen.isActive) {
     startScreen.update(dt);
-    startScreen.checkIntroStart(null, sfxManager, gameManager);
+    startScreen.checkIntroStart(sfxManager, gameManager);
   }
 
   // Don't update most game logic if options menu is open or start screen is active

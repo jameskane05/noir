@@ -65,7 +65,7 @@ export const cameraAnimations = {
 
   lookAndJump: {
     id: "lookAndJump",
-    type: "animation",
+    type: "jsonAnimation",
     path: "/json/look-and-jump.json",
     description: "Camera animation for drive-by sequence",
     criteria: { currentState: GAME_STATES.DRIVE_BY },

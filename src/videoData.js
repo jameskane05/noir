@@ -33,13 +33,31 @@ import { checkCriteria } from "./criteriaHelper.js";
  */
 export const VIDEO_IDS = {
   DRIVE_BY: "drive-by",
+  CAT: "cat",
 };
 
 export const videos = {
   [VIDEO_IDS.DRIVE_BY]: {
     id: VIDEO_IDS.DRIVE_BY,
     videoPath: "/video/1007-bw-2.webm",
-    position: [-32.82, 1, 53.86],
+    position: [-27.82, 1, 53.86],
+    rotation: [0, -Math.PI / 2, 0],
+    scale: [3, 3, 3],
+    loop: true,
+    muted: true,
+    billboard: true,
+    // Play from START_SCREEN onwards
+    criteria: {
+      currentState: { $gte: GAME_STATES.START_SCREEN },
+    },
+    autoPlay: true,
+    once: false,
+    priority: 0,
+  },
+  [VIDEO_IDS.CAT]: {
+    id: VIDEO_IDS.CAT,
+    videoPath: "/video/cat.webm",
+    position: [-112.1, -1.4, -120.0], // 3 meters in front of drive-by video
     rotation: [0, -Math.PI / 2, 0],
     scale: [3, 3, 3],
     loop: true,

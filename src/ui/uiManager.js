@@ -9,8 +9,8 @@
  * - Instantiates and manages UI components
  */
 
-import { IdleHelper } from "./ui/idleHelper.js";
-import { FullscreenButton } from "./ui/fullscreenButton.js";
+import { IdleHelper } from "./idleHelper.js";
+import { FullscreenButton } from "./fullscreenButton.js";
 import { uiElements } from "./uiData.js";
 
 export class UIManager {

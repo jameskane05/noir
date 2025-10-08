@@ -60,7 +60,7 @@ export const sceneObjects = {
     description: "Phone booth GLTF model",
     position: [7, -2.5, 42],
     rotation: [0, Math.PI / 2, 0], // 90 degrees around Y axis
-    scale: [3.5, 3, 3.5],
+    scale: [2.5, 2.5, 2.5],
     options: {
       // Create a container group for proper scaling
       useContainer: true,
