@@ -84,10 +84,12 @@ class GizmoManager {
    * @param {Object} options
    * @param {Object|Array} options.sceneDefs - map or array of scene defs
    * @param {Object|Array} options.videoDefs - map or array of video defs
+   * @param {Object|Array} options.colliderDefs - map or array of collider defs
    */
   applyGlobalBlocksFromDefinitions({
     sceneDefs = null,
     videoDefs = null,
+    colliderDefs = null,
   } = {}) {
     const collect = (defs) => {
       if (!defs) return [];
@@ -95,7 +97,11 @@ class GizmoManager {
       if (typeof defs === "object") return Object.values(defs);
       return [];
     };
-    const all = [...collect(sceneDefs), ...collect(videoDefs)];
+    const all = [
+      ...collect(sceneDefs),
+      ...collect(videoDefs),
+      ...collect(colliderDefs),
+    ];
     this.hasGizmoInDefinitions = all.some((d) => d && d.gizmo === true);
     // Inform gameManager (if available via window) so all managers share the same flag
     try {

@@ -19,6 +19,7 @@
  * - delay: Delay in seconds before playing the video when criteria are met (default: 0)
  * - once: If true, only play once (tracked automatically)
  * - priority: Higher priority videos are checked first (default: 0)
+ * - gizmo: If true, enable debug gizmo for positioning visual objects (G=move, R=rotate, S=scale)
  * - onComplete: Optional function called when video ends, receives gameManager
  *
  * Usage:

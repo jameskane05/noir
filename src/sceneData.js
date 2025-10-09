@@ -18,7 +18,7 @@
  *   - Operators: $eq, $ne, $gt, $gte, $lt, $lte, $in, $nin
  * - loadByDefault: If true, load regardless of state (default: false)
  * - priority: Higher priority objects are loaded first (default: 0)
- * - gizmo: If true, enable debug gizmo for positioning (G=move, R=rotate, S=scale)
+ * - gizmo: If true, enable debug gizmo for positioning visual objects (G=move, R=rotate, S=scale)
  * - animations: Array of animation definitions (for GLTF objects with animations)
  *   - id: Unique identifier for this animation
  *   - clipName: Name of animation clip in GLTF (null = use first clip)

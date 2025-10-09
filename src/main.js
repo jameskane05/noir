@@ -268,20 +268,21 @@ gameManager.on("character-controller:disabled", () => {
   inputManager.hideTouchControls();
 });
 
+// Initialize gizmo manager for debug positioning
+const gizmoManager = new GizmoManager(scene, camera, renderer);
+
 // Initialize collider manager with scene and sceneManager references
 const colliderManager = new ColliderManager(
   physicsManager,
   gameManager,
   colliders,
   scene,
-  sceneManager
+  sceneManager,
+  gizmoManager
 );
 
 // Make collider manager globally accessible for debugging
 window.colliderManager = colliderManager;
-
-// Initialize gizmo manager for debug positioning
-const gizmoManager = new GizmoManager(scene, camera, renderer);
 
 // Pass gizmo manager to scene manager and video manager
 sceneManager.gizmoManager = gizmoManager;
@@ -300,6 +301,7 @@ window.gameManager = gameManager;
 gizmoManager.applyGlobalBlocksFromDefinitions({
   sceneDefs: sceneObjects,
   videoDefs: videos,
+  colliderDefs: colliders,
 });
 
 // Allow InputManager to detect gizmo hover/drag to enable drag-to-look when not over gizmo

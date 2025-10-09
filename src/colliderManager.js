@@ -18,22 +18,53 @@ class ColliderManager {
     gameManager,
     colliderData = [],
     scene = null,
-    sceneManager = null
+    sceneManager = null,
+    gizmoManager = null
   ) {
     this.physicsManager = physicsManager;
     this.gameManager = gameManager;
     this.scene = scene;
     this.sceneManager = sceneManager;
+    this.gizmoManager = gizmoManager; // For registering debug meshes
     this.colliders = [];
     this.debugMeshes = new Map(); // Map of collider id -> debug mesh
     this.activeColliders = new Set(); // Track which colliders the character is currently inside
     this.triggeredOnce = new Set(); // Track which "once" colliders have been triggered
 
+    // Check for gizmo-enabled colliders and set global flag
+    this.checkForGizmoColliders(colliderData);
+
     // Initialize all colliders
     this.initializeColliders(colliderData);
 
-    // Initialize debug visualization meshes (if enabled via URL param)
+    // Initialize debug visualization meshes (if enabled via URL param OR for gizmo-enabled colliders)
     this.initializeDebugMeshes();
+  }
+
+  /**
+   * Check for gizmo-enabled colliders and set global flag
+   * @param {Array} colliderData - Array of collider definitions
+   */
+  checkForGizmoColliders(colliderData) {
+    const hasGizmo = colliderData.some(
+      (collider) => collider && collider.gizmo === true
+    );
+
+    if (hasGizmo) {
+      try {
+        if (
+          window?.gameManager &&
+          typeof window.gameManager.setState === "function"
+        ) {
+          window.gameManager.setState({ hasGizmoInData: true });
+          console.log(
+            "ColliderManager: Set hasGizmoInData=true due to gizmo-enabled colliders"
+          );
+        }
+      } catch (e) {
+        console.error("ColliderManager: Failed to set hasGizmoInData:", e);
+      }
+    }
   }
 
   /**
@@ -449,16 +480,22 @@ class ColliderManager {
   initializeDebugMeshes() {
     const showColliders =
       this.gameManager.getURLParam("showColliders") === "true";
-    if (!showColliders) {
+    const hasGizmoManager = !!this.gizmoManager;
+
+    if (!showColliders && !hasGizmoManager) {
       console.log(
         "Collider debug visualization disabled (add ?showColliders=true to URL to enable)"
       );
       return;
     }
 
-    console.log("Collider debug visualization enabled (showColliders=true)");
+    if (showColliders) {
+      console.log("Collider debug visualization enabled (showColliders=true)");
+    }
+
     this.colliders.forEach(({ id, data, enabled }) => {
-      if (!enabled) return;
+      // Create debug mesh if URL param is set OR if collider has gizmo flag
+      if (!enabled && !data.gizmo) return;
 
       let geometry;
       switch (data.type) {
@@ -485,7 +522,7 @@ class ColliderManager {
       if (geometry) {
         // Wireframe debug material
         const material = new THREE.MeshBasicMaterial({
-          color: 0x00ff00,
+          color: data.gizmo ? 0xff0000 : 0x00ff00, // Red for gizmo colliders, green for debug
           wireframe: true,
           wireframeLinewidth: 2,
         });
@@ -504,7 +541,15 @@ class ColliderManager {
         this.scene.add(mesh);
         this.debugMeshes.set(id, mesh);
 
-        console.log(`Added debug mesh for collider: ${id}`);
+        // Register with gizmo manager if this collider has gizmo flag
+        if (data.gizmo && this.gizmoManager) {
+          this.gizmoManager.registerObject(mesh, id, "collider");
+          console.log(`Registered gizmo collider: ${id}`);
+        }
+
+        if (showColliders) {
+          console.log(`Added debug mesh for collider: ${id}`);
+        }
       }
     });
   }

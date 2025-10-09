@@ -22,6 +22,7 @@
  *   - Simple equality: { introComplete: true, chapter: 1 }
  *   - Comparison operators: { currentState: { $gte: GAME_STATES.INTRO, $lt: GAME_STATES.DRIVE_BY } }
  *   - Operators: $eq, $ne, $gt, $gte, $lt, $lte, $in, $nin
+ * - gizmo: If true, indicates this collider is part of gizmo authoring mode (blocks idle behaviors)
  *
  * Event Types:
  * - "dialog": Trigger a dialog sequence
@@ -128,6 +129,7 @@ export const colliders = [
     onExit: [],
     once: false,
     enabled: true,
+    gizmo: true,
   },
 
   // Add your colliders here...
