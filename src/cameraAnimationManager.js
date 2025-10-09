@@ -44,6 +44,18 @@ class CameraAnimationManager {
     // Track last state to detect changes
     this.lastState = null;
 
+    // Delayed playback support
+    this.pendingAnimations = new Map(); // Map of animId -> { animData, timer, delay }
+
+    // Post-animation settle-up to ensure clearance above floor
+    this.isSettlingUp = false;
+    this.settleStartY = 0;
+    this.settleTargetY = 0;
+    this.settleElapsed = 0;
+    this.settleDuration = 0.3; // seconds
+    this._pendingComplete = null;
+    this.minCharacterCenterY = 0.9; // minimum body center Y to be above physics floor
+
     // Listen for state changes
     if (this.gameManager) {
       this.gameManager.on("state:changed", (newState, oldState) => {
@@ -122,8 +134,11 @@ class CameraAnimationManager {
       return;
     }
 
-    // Check if any animation should play for this state
-    const animData = getCameraAnimationForState(newState);
+    // Check if any animation should play for this state (pass playedAnimations for playOnce filtering)
+    const animData = getCameraAnimationForState(
+      newState,
+      this.playedAnimations
+    );
     if (!animData) {
       console.log(`CameraAnimationManager: No animation matches current state`);
       return;
@@ -133,19 +148,79 @@ class CameraAnimationManager {
       `CameraAnimationManager: Found animation '${animData.id}' for state`
     );
 
-    // Check playOnce
-    if (animData.playOnce && this.playedAnimations.has(animData.id)) {
-      console.log(
-        `CameraAnimationManager: Animation '${animData.id}' already played (playOnce)`
-      );
-      return;
-    }
+    // Check if animation has a delay
+    const delay = animData.delay || 0;
 
-    // Play the animation
+    if (delay > 0) {
+      // Schedule delayed playback
+      this.scheduleDelayedAnimation(animData, delay);
+    } else {
+      // Play immediately (playOnce check already handled in getCameraAnimationForState)
+      console.log(
+        `CameraAnimationManager: State changed, playing '${animData.id}'`
+      );
+      this.playFromData(animData);
+    }
+  }
+
+  /**
+   * Schedule an animation to play after a delay
+   * @param {Object} animData - Animation data to schedule
+   * @param {number} delay - Delay in seconds
+   * @private
+   */
+  scheduleDelayedAnimation(animData, delay) {
     console.log(
-      `CameraAnimationManager: State changed, playing '${animData.id}'`
+      `CameraAnimationManager: Scheduling animation "${animData.id}" with ${delay}s delay`
     );
-    this.playFromData(animData);
+
+    this.pendingAnimations.set(animData.id, {
+      animData,
+      timer: 0,
+      delay,
+    });
+  }
+
+  /**
+   * Cancel a pending delayed animation
+   * @param {string} animId - Animation ID to cancel
+   */
+  cancelDelayedAnimation(animId) {
+    if (this.pendingAnimations.has(animId)) {
+      console.log(
+        `CameraAnimationManager: Cancelled delayed animation "${animId}"`
+      );
+      this.pendingAnimations.delete(animId);
+    }
+  }
+
+  /**
+   * Cancel all pending delayed animations
+   */
+  cancelAllDelayedAnimations() {
+    if (this.pendingAnimations.size > 0) {
+      console.log(
+        `CameraAnimationManager: Cancelling ${this.pendingAnimations.size} pending animation(s)`
+      );
+      this.pendingAnimations.clear();
+    }
+  }
+
+  /**
+   * Check if an animation is pending (scheduled with delay)
+   * @param {string} animId - Animation ID to check
+   * @returns {boolean}
+   */
+  isAnimationPending(animId) {
+    return this.pendingAnimations.has(animId);
+  }
+
+  /**
+   * Check if any animations are pending
+   * @returns {boolean}
+   */
+  hasAnimationsPending() {
+    return this.pendingAnimations.size > 0;
   }
 
   /**
@@ -429,6 +504,40 @@ class CameraAnimationManager {
    * @param {number} dt - Delta time in seconds
    */
   update(dt) {
+    // Update pending delayed animations
+    if (this.pendingAnimations.size > 0) {
+      for (const [animId, pending] of this.pendingAnimations) {
+        pending.timer += dt;
+
+        // Check if delay has elapsed and no animation is currently playing
+        if (pending.timer >= pending.delay && !this.isPlaying) {
+          console.log(
+            `CameraAnimationManager: Playing delayed animation "${animId}"`
+          );
+          this.pendingAnimations.delete(animId);
+          this.playFromData(pending.animData);
+          break; // Only play one animation per frame
+        }
+      }
+    }
+
+    // Handle settle-up phase (runs after animation frames complete)
+    if (this.isSettlingUp) {
+      this.settleElapsed += dt;
+      const t = Math.min(1, this.settleElapsed / this.settleDuration);
+      const eased = 1 - Math.pow(1 - t, 3);
+      this.camera.position.y =
+        this.settleStartY + (this.settleTargetY - this.settleStartY) * eased;
+      if (t >= 1) {
+        const callback = this._pendingComplete;
+        this._pendingComplete = null;
+        // Complete by stopping and restoring input
+        this.stop(true, true);
+        if (callback) callback();
+      }
+      return;
+    }
+
     if (!this.isPlaying || !this.currentAnimation) return;
 
     this.elapsed += dt;
@@ -442,6 +551,20 @@ class CameraAnimationManager {
       if (last.pd) {
         this._rotatedPos.copy(last.pd).applyQuaternion(this.baseQuat);
         this.camera.position.copy(this.basePos).add(this._rotatedPos);
+      }
+
+      // Ensure clearance above physics floor before restoring control
+      const cameraHeight = this.characterController?.cameraHeight ?? 1.6;
+      const bodyCenterY = this.camera.position.y - cameraHeight;
+      if (bodyCenterY < this.minCharacterCenterY) {
+        // Lerp camera up by the shortfall before restoring input
+        const deltaUp = this.minCharacterCenterY - bodyCenterY;
+        this.isSettlingUp = true;
+        this.settleStartY = this.camera.position.y;
+        this.settleTargetY = this.camera.position.y + deltaUp;
+        this.settleElapsed = 0;
+        this._pendingComplete = this.onComplete;
+        return;
       }
 
       // Complete

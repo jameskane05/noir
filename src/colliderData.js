@@ -114,7 +114,7 @@ export const colliders = [
   },
 
   {
-    id: "trigger-new-location",
+    id: "cat",
     type: "box",
     position: { x: -19.7, y: 0.4, z: -125.7 },
     rotation: { x: 0, y: 0, z: 0 },
@@ -129,7 +129,6 @@ export const colliders = [
     onExit: [],
     once: false,
     enabled: true,
-    gizmo: true,
   },
 
   // Add your colliders here...

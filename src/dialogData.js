@@ -199,7 +199,7 @@ export const dialogSequences = {
     delay: 0.5,
     onComplete: (gameManager) => {
       console.log("PETIT empath response complete - triggering warning");
-      gameManager.setState({ dialogChoice1Complete: true });
+      gameManager.setState({ currentState: GAME_STATES.DRIVE_BY_PREAMBLE });
     },
   },
 
@@ -218,7 +218,7 @@ export const dialogSequences = {
     delay: 0.5,
     onComplete: (gameManager) => {
       console.log("PETIT psychologist response complete - triggering warning");
-      gameManager.setState({ dialogChoice1Complete: true });
+      gameManager.setState({ currentState: GAME_STATES.DRIVE_BY_PREAMBLE });
     },
   },
 
@@ -237,7 +237,7 @@ export const dialogSequences = {
     delay: 0.5,
     onComplete: (gameManager) => {
       console.log("PETIT lawful response complete - triggering warning");
-      gameManager.setState({ dialogChoice1Complete: true });
+      gameManager.setState({ currentState: GAME_STATES.DRIVE_BY_PREAMBLE });
     },
   },
 
@@ -250,8 +250,7 @@ export const dialogSequences = {
       { text: "Duck and cover, now!", duration: 2.0 },
     ],
     criteria: {
-      currentState: GAME_STATES.DIALOG_CHOICE_1,
-      dialogChoice1Complete: true,
+      currentState: GAME_STATES.DRIVE_BY_PREAMBLE,
     },
     once: true,
     autoPlay: true,
@@ -259,35 +258,44 @@ export const dialogSequences = {
     delay: 2.125,
     onComplete: (gameManager) => {
       console.log("Warning complete - moving to DRIVE_BY_PREAMBLE state");
-      gameManager.setState({ currentState: GAME_STATES.DRIVE_BY_PREAMBLE });
+      gameManager.setState({ currentState: GAME_STATES.DRIVE_BY });
     },
   },
 
   // PETIT's final warning before drive-by
-  [DIALOG_IDS.DRIVE_BY_PREAMBLE]: {
-    id: DIALOG_IDS.DRIVE_BY_PREAMBLE,
-    audio: "./audio/dialog/00-oui-you-know-him.mp3",
-    captions: [
-      { text: "Oui, you know him.", duration: 2.0 },
-      { text: "And you'd better high-tail it!", duration: 3.0 },
-      {
-        text: "There is an attic nearby, and someone waiting...",
-        duration: 3.0,
-      },
-    ],
-    criteria: {
-      currentState: GAME_STATES.DRIVE_BY_PREAMBLE,
-    },
-    once: true,
-    autoPlay: true,
-    priority: 100,
-    delay: 0.5,
-    onComplete: (gameManager) => {
-      console.log("DRIVE_BY_PREAMBLE dialog completed - moving to DRIVE_BY");
-      // State change will automatically trigger look-and-jump animation via cameraAnimationData.js
-      gameManager.setState({ currentState: GAME_STATES.DRIVE_BY });
-    },
-  },
+  // [DIALOG_IDS.DRIVE_BY_PREAMBLE]: {
+  //   id: DIALOG_IDS.DRIVE_BY_PREAMBLE,
+  //   audio: "./audio/dialog/00-oui-you-know-him.mp3",
+  //   captions: [
+  //     { text: "Oui, you know him.", duration: 2.0 },
+  //     { text: "And you'd better high-tail it!", duration: 3.0 },
+  //     {
+  //       text: "There is an attic nearby, and someone waiting...",
+  //       duration: 3.0,
+  //     },
+  //   ],
+  //   criteria: {
+  //     currentState: GAME_STATES.DRIVE_BY_PREAMBLE,
+  //   },
+  //   once: true,
+  //   autoPlay: true,
+  //   priority: 100,
+  //   delay: 0.5,
+  //   onComplete: (gameManager) => {
+  //     console.log("DRIVE_BY_PREAMBLE dialog completed - moving to DRIVE_BY");
+  //     gameManager.setState({ currentState: GAME_STATES.DRIVE_BY });
+
+  //     // Trigger the look-and-jump camera animation
+  //     gameManager.emit("camera:animation", {
+  //       animation: "/json/look-and-jump.json",
+  //       onComplete: (success) => {
+  //         if (success) {
+  //           console.log("Look and jump camera animation completed");
+  //         }
+  //       },
+  //     });
+  //   },
+  // },
 };
 
 /**

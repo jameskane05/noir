@@ -22,6 +22,7 @@ export class IdleHelper {
     this.characterController = characterController;
     this.wasControlEnabled = false; // Track previous control state
     this.wasCameraAnimating = false; // Track previous camera animation state
+    this.wasBlocked = false; // Track previous overall blocked state
     this.globalDisable = false; // If true, idle behaviors are fully disabled
 
     this.init();
@@ -266,6 +267,40 @@ export class IdleHelper {
         return;
       }
 
+      // Calculate current blocked state (all blocking conditions)
+      const isDialogPlaying =
+        this.dialogManager && this.dialogManager.isPlaying;
+      const hasPendingDialog =
+        this.dialogManager &&
+        this.dialogManager.pendingDialogs &&
+        this.dialogManager.pendingDialogs.size > 0;
+      const isCharacterLookingAt =
+        this.characterController && this.characterController.isLookingAt;
+      const isCharacterMovingTo =
+        this.characterController && this.characterController.isMovingTo;
+      const isChoiceUIOpen =
+        this.dialogChoiceUI && this.dialogChoiceUI.isVisible;
+
+      const isCurrentlyBlocked =
+        !isControlEnabled ||
+        isDialogPlaying ||
+        hasPendingDialog ||
+        isCameraAnimating ||
+        isCharacterLookingAt ||
+        isCharacterMovingTo ||
+        isChoiceUIOpen;
+
+      // If transitioning from blocked to unblocked, reset idle timer
+      if (this.wasBlocked && !isCurrentlyBlocked) {
+        this.lastMovementTime = Date.now();
+        console.log(
+          "IdleHelper: Transitioned from blocked to unblocked, resetting idle timer"
+        );
+      }
+
+      // Update the previous blocked state
+      this.wasBlocked = isCurrentlyBlocked;
+
       // Don't check idle state if controls haven't been enabled yet
       if (!isControlEnabled || this.lastMovementTime === null) {
         return;
@@ -318,27 +353,9 @@ export class IdleHelper {
 
       const timeSinceLastMovement = Date.now() - this.lastMovementTime;
 
-      // Don't show helper if dialog is playing (isPlaying is a property, not a method)
-      const isDialogPlaying =
-        this.dialogManager && this.dialogManager.isPlaying;
-
-      // Don't show helper if there are pending delayed dialogs
-      const hasPendingDialog =
-        this.dialogManager &&
-        this.dialogManager.pendingDialogs &&
-        this.dialogManager.pendingDialogs.size > 0;
-
-      // Don't show helper if dialog choice UI is open
-      const isChoiceUIOpen =
-        this.dialogChoiceUI && this.dialogChoiceUI.isVisible;
-
-      // Don't show helper if character is in a lookat or moveTo
-      const isCharacterLookingAt =
-        this.characterController && this.characterController.isLookingAt;
-      const isCharacterMovingTo =
-        this.characterController && this.characterController.isMovingTo;
-
-      // Note: isCameraAnimating is already defined above (line 205-206)
+      // Note: All blocking condition variables (isDialogPlaying, hasPendingDialog,
+      // isCameraAnimating, isCharacterLookingAt, isCharacterMovingTo, isChoiceUIOpen)
+      // are already defined above when calculating the blocked state
 
       if (
         timeSinceLastMovement >= this.idleThreshold &&

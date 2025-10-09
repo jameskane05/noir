@@ -32,7 +32,7 @@ export class StartScreen {
     this.targetPosition =
       options.targetPosition || new THREE.Vector3(10, 1.6, 15);
     this.targetRotation = options.targetRotation || {
-      yaw: THREE.MathUtils.degToRad(-230),
+      yaw: THREE.MathUtils.degToRad(-300),
       pitch: 0,
     };
 

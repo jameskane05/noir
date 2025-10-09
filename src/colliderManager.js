@@ -481,8 +481,9 @@ class ColliderManager {
     const showColliders =
       this.gameManager.getURLParam("showColliders") === "true";
     const hasGizmoManager = !!this.gizmoManager;
+    const hasAnyGizmoColliders = this.colliders.some(({ data }) => data.gizmo);
 
-    if (!showColliders && !hasGizmoManager) {
+    if (!showColliders && !hasAnyGizmoColliders) {
       console.log(
         "Collider debug visualization disabled (add ?showColliders=true to URL to enable)"
       );
@@ -494,8 +495,10 @@ class ColliderManager {
     }
 
     this.colliders.forEach(({ id, data, enabled }) => {
-      // Create debug mesh if URL param is set OR if collider has gizmo flag
-      if (!enabled && !data.gizmo) return;
+      // Create debug mesh if URL param is set OR if this specific collider has gizmo flag
+      const shouldCreateDebugMesh =
+        showColliders || (data.gizmo && this.gizmoManager);
+      if (!enabled || !shouldCreateDebugMesh) return;
 
       let geometry;
       switch (data.type) {

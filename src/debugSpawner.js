@@ -36,26 +36,31 @@ const stateOverrides = {
   },
 
   PHONE_BOOTH_RINGING: {
+    isPlaying: true,
     controlEnabled: true,
     playerPosition: { x: 8, y: 0.9, z: 32 }, // Near phone booth
   },
 
   ANSWERED_PHONE: {
-    controlEnabled: true,
+    isPlaying: true,
+    controlEnabled: false,
     playerPosition: { x: 7, y: 0.9, z: 42 }, // At phone booth
   },
 
   DIALOG_CHOICE_1: {
+    isPlaying: true,
     controlEnabled: true,
     playerPosition: { x: 7, y: 0.9, z: 42 }, // At phone booth
   },
 
   DRIVE_BY_PREAMBLE: {
+    isPlaying: true,
     controlEnabled: true,
     playerPosition: { x: 7, y: 0.9, z: 42 }, // At phone booth
   },
 
   DRIVE_BY: {
+    isPlaying: true,
     controlEnabled: true,
     playerPosition: { x: 7, y: 0.9, z: 42 }, // At phone booth
   },

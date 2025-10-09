@@ -16,6 +16,7 @@
  *   - If criteria matches and sound is not playing → play it
  *   - If criteria doesn't match and sound is playing → stop it
  * - playOnce: If true, sound only plays once per game session (for one-shots triggered by state)
+ * - delay: Delay in seconds before playing after state conditions are met (default: 0)
  *
  * For 3D spatial audio, also include:
  * - spatial: true to indicate this is a 3D positioned sound
@@ -98,6 +99,18 @@ export const sfxSounds = {
     },
   },
 
+  "cat-meow-hiss-reverb": {
+    id: "cat-meow-hiss-reverb",
+    src: ["/audio/sfx/cat-meow-hiss-reverb.mp3"],
+    volume: 0.7,
+    loop: false,
+    spatial: false,
+    preload: true,
+    criteria: { heardCat: true },
+    playOnce: true,
+    delay: 0.5, // Wait 0.5 seconds after hearing cat before playing
+  },
+
   "footsteps-gravel": {
     id: "footsteps-gravel",
     src: ["/audio/sfx/gravel-steps.ogg"],
@@ -115,7 +128,7 @@ export const sfxSounds = {
     loop: true,
     spatial: false,
     preload: true,
-    criteria: { currentState: { $gte: GAME_STATES.START_SCREEN } }, // Play when state.cityAmbiance is true
+    criteria: { currentState: { $gte: GAME_STATES.START_SCREEN } },
   },
 
   // One-shot effects
@@ -212,7 +225,6 @@ export const sfxTriggers = {
   // Collider-based triggers
   phoneBoothRing: "phone-ring",
   phonePickup: "phone-pickup",
-  cityAmbiance: "city-ambiance",
 
   // Surface-based footstep triggers
   footstepsPavement: "footsteps-pavement",

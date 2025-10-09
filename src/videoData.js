@@ -61,7 +61,7 @@ export const videos = {
     position: [-102.44, -6.4, -118.24], // 3 meters in front of drive-by video
     rotation: [0, -Math.PI / 2, 0],
     scale: [2, 2, 2],
-    loop: true,
+    loop: false,
     muted: true,
     billboard: true,
     criteria: {

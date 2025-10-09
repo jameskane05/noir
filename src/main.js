@@ -191,7 +191,7 @@ if (gameManager.state.currentState === GAME_STATES.START_SCREEN) {
     circleHeight: 8,
     circleSpeed: 0.05,
     targetPosition: cameraTargetPos,
-    targetRotation: { yaw: THREE.MathUtils.degToRad(-230), pitch: 0 },
+    targetRotation: { yaw: THREE.MathUtils.degToRad(-210), pitch: 0 },
     transitionDuration: 8.0,
     uiManager: uiManager,
   });
@@ -413,6 +413,9 @@ renderer.setAnimationLoop(function animate(time) {
 
   // Always update music manager (handles fades)
   musicManager.update(dt);
+
+  // Always update SFX manager (handles delayed sound playback)
+  sfxManager.update(dt);
 
   // Always update dialog manager (handles caption timing)
   dialogManager.update(dt);

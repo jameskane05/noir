@@ -21,7 +21,7 @@ class CharacterController {
     this.idleHelper = idleHelper;
 
     // Camera rotation
-    this.yaw = THREE.MathUtils.degToRad(-230); // Initial yaw in radians
+    this.yaw = THREE.MathUtils.degToRad(-180); // Initial yaw in radians
     this.pitch = 0;
     this.targetYaw = this.yaw;
     this.targetPitch = this.pitch;

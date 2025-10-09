@@ -23,6 +23,9 @@ class SFXManager {
     // Track sounds that have been played once (for playOnce functionality)
     this.playedSounds = new Set();
 
+    // Delayed playback support
+    this.pendingSounds = new Map(); // Map of soundId -> { soundId, timer, delay }
+
     // Set global Howler volume (we'll manage individual sounds separately)
     Howler.volume(1.0);
   }
@@ -67,29 +70,101 @@ class SFXManager {
       const matchesCriteria = checkCriteria(state, def.criteria);
       const isPlaying = this.isPlaying(id);
       const hasPlayedOnce = this.playedSounds.has(id);
+      const isPending = this.pendingSounds.has(id);
 
       // If criteria matches and sound is not playing
-      if (matchesCriteria && !isPlaying) {
+      if (matchesCriteria && !isPlaying && !isPending) {
         // Check playOnce - skip if already played
         if (def.playOnce && hasPlayedOnce) {
           continue;
         }
 
-        // Play the sound
-        try {
-          this.play(id);
-          if (def.playOnce) {
-            this.playedSounds.add(id);
+        // Check if this sound has a delay
+        const delay = def.delay || 0;
+
+        if (delay > 0) {
+          // Schedule delayed playback
+          this.scheduleDelayedSound(id, delay);
+        } else {
+          // Play immediately
+          try {
+            this.play(id);
+            if (def.playOnce) {
+              this.playedSounds.add(id);
+            }
+          } catch (e) {
+            // Ignore autoplay errors, user gesture will trigger later
           }
-        } catch (e) {
-          // Ignore autoplay errors, user gesture will trigger later
         }
       }
-      // If criteria doesn't match and sound is playing, stop it
-      else if (!matchesCriteria && isPlaying) {
-        this.stop(id);
+      // If criteria doesn't match and sound is playing or pending, stop/cancel it
+      else if (!matchesCriteria) {
+        if (isPlaying) {
+          this.stop(id);
+        }
+        if (isPending) {
+          this.cancelDelayedSound(id);
+        }
       }
     }
+  }
+
+  /**
+   * Schedule a sound to play after a delay
+   * @param {string} soundId - Sound ID to schedule
+   * @param {number} delay - Delay in seconds
+   * @private
+   */
+  scheduleDelayedSound(soundId, delay) {
+    console.log(
+      `SFXManager: Scheduling sound "${soundId}" with ${delay}s delay`
+    );
+
+    this.pendingSounds.set(soundId, {
+      soundId,
+      timer: 0,
+      delay,
+    });
+  }
+
+  /**
+   * Cancel a pending delayed sound
+   * @param {string} soundId - Sound ID to cancel
+   */
+  cancelDelayedSound(soundId) {
+    if (this.pendingSounds.has(soundId)) {
+      console.log(`SFXManager: Cancelled delayed sound "${soundId}"`);
+      this.pendingSounds.delete(soundId);
+    }
+  }
+
+  /**
+   * Cancel all pending delayed sounds
+   */
+  cancelAllDelayedSounds() {
+    if (this.pendingSounds.size > 0) {
+      console.log(
+        `SFXManager: Cancelling ${this.pendingSounds.size} pending sound(s)`
+      );
+      this.pendingSounds.clear();
+    }
+  }
+
+  /**
+   * Check if a sound is pending (scheduled with delay)
+   * @param {string} soundId - Sound ID to check
+   * @returns {boolean}
+   */
+  isSoundPending(soundId) {
+    return this.pendingSounds.has(soundId);
+  }
+
+  /**
+   * Check if any sounds are pending
+   * @returns {boolean}
+   */
+  hasSoundsPending() {
+    return this.pendingSounds.size > 0;
   }
 
   /**
@@ -340,10 +415,49 @@ class SFXManager {
   }
 
   /**
+   * Update method - call in animation loop to process delayed sounds
+   * @param {number} dt - Delta time in seconds
+   */
+  update(dt) {
+    // Update pending delayed sounds
+    if (this.pendingSounds.size > 0) {
+      for (const [soundId, pending] of this.pendingSounds) {
+        pending.timer += dt;
+
+        // Check if delay has elapsed
+        if (pending.timer >= pending.delay) {
+          console.log(`SFXManager: Playing delayed sound "${soundId}"`);
+          this.pendingSounds.delete(soundId);
+
+          // Get the sound definition to check playOnce
+          const def = this._data?.[soundId];
+
+          try {
+            this.play(soundId);
+            if (def?.playOnce) {
+              this.playedSounds.add(soundId);
+            }
+          } catch (e) {
+            // Ignore autoplay errors
+            console.warn(
+              `SFXManager: Failed to play delayed sound "${soundId}"`,
+              e
+            );
+          }
+          break; // Only play one sound per frame
+        }
+      }
+    }
+  }
+
+  /**
    * Clean up all sounds
    */
   destroy() {
     this.stopAll();
+
+    // Clear pending sounds
+    this.pendingSounds.clear();
 
     // Clean up sounds
     for (const [id, soundData] of this.sounds) {

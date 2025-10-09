@@ -13,6 +13,7 @@
  *   - Operators: $eq, $ne, $gt, $gte, $lt, $lte, $in, $nin
  * - priority: Higher priority animations are checked first (default: 0)
  * - playOnce: If true, only plays once per game session (default: false)
+ * - delay: Delay in seconds before playing after state conditions are met (default: 0)
  *
  * Type-specific properties:
  *
@@ -70,6 +71,7 @@ export const cameraAnimations = {
     criteria: { currentState: GAME_STATES.PHONE_BOOTH_RINGING },
     priority: 100,
     playOnce: true,
+    delay: 0.5, // Wait 0.5 seconds before looking at phone booth
   },
 
   phoneBoothMoveTo: {
@@ -97,7 +99,7 @@ export const cameraAnimations = {
     type: "lookat",
     description: "Look at cat video when player hears cat sound",
     position: { x: -112.1, y: -1.4, z: -120.0 }, // Cat video position
-    duration: 2.0,
+    duration: 1.0,
     restoreControl: true,
     enableZoom: true,
     zoomOptions: {
@@ -123,6 +125,7 @@ export const cameraAnimations = {
     playOnce: true,
     syncController: true,
     restoreInput: true,
+    delay: 2.0, // Wait 2 seconds after DRIVE_BY state before animation
   },
 
   // Add your camera animations here...
@@ -131,9 +134,13 @@ export const cameraAnimations = {
 /**
  * Get the camera animation that should play for the current game state
  * @param {Object} gameState - Current game state
+ * @param {Set} playedAnimations - Set of animation IDs that have already been played (for playOnce check)
  * @returns {Object|null} Camera animation data or null if none match
  */
-export function getCameraAnimationForState(gameState) {
+export function getCameraAnimationForState(
+  gameState,
+  playedAnimations = new Set()
+) {
   // Convert to array and sort by priority (highest first)
   const animations = Object.values(cameraAnimations).sort(
     (a, b) => (b.priority || 0) - (a.priority || 0)
@@ -144,7 +151,7 @@ export function getCameraAnimationForState(gameState) {
     gameState
   );
 
-  // Find first animation matching criteria
+  // Find first animation matching criteria that hasn't been played yet
   for (const animation of animations) {
     if (!animation.criteria) {
       console.log(
@@ -162,6 +169,13 @@ export function getCameraAnimationForState(gameState) {
     );
 
     if (matches) {
+      // Check playOnce - skip if already played
+      if (animation.playOnce && playedAnimations.has(animation.id)) {
+        console.log(
+          `CameraAnimationData: Animation '${animation.id}' matches but already played (playOnce), continuing search...`
+        );
+        continue; // Keep searching for other matching animations
+      }
       return animation;
     }
   }

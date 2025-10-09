@@ -212,12 +212,6 @@ class GizmoManager {
 
     // Setup event listeners
     this.setupEventListeners();
-
-    console.log("GizmoManager: Enabled");
-    console.log("  - Gizmo auto-attaches to objects with gizmo: true");
-    console.log("  - G = Translate, R = Rotate, S = Scale");
-    console.log("  - W = World space, L = Local space");
-    console.log("  - Drag gizmo to manipulate, release to log position");
   }
 
   /**
@@ -240,7 +234,6 @@ class GizmoManager {
     }
 
     this.removeEventListeners();
-    console.log("GizmoManager: Disabled");
   }
 
   /**
