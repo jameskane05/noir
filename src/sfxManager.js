@@ -242,7 +242,9 @@ class SFXManager {
 
       // Apply spatial attributes after creation
       if (sound.spatial) {
-        if (sound.position) howl.pos(...sound.position);
+        if (sound.position) {
+          howl.pos(sound.position.x, sound.position.y, sound.position.z);
+        }
         if (sound.pannerAttr) howl.pannerAttr(sound.pannerAttr);
       }
 
@@ -254,11 +256,17 @@ class SFXManager {
         sound.reactiveLight.enabled &&
         this.lightManager
       ) {
-        this.lightManager.createReactiveLight(
-          sound.id,
-          howl,
-          sound.reactiveLight
-        );
+        // Apply offset to sound position for reactive light
+        const lightConfig = { ...sound.reactiveLight };
+        if (sound.position && lightConfig.position) {
+          lightConfig.position = {
+            x: sound.position.x + (lightConfig.position.x || 0),
+            y: sound.position.y + (lightConfig.position.y || 0),
+            z: sound.position.z + (lightConfig.position.z || 0),
+          };
+        }
+
+        this.lightManager.createReactiveLight(sound.id, howl, lightConfig);
       }
     });
   }

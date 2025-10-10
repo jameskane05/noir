@@ -20,7 +20,7 @@
  *
  * For 3D spatial audio, also include:
  * - spatial: true to indicate this is a 3D positioned sound
- * - position: [x, y, z] position in 3D space (applied via howl.pos() method)
+ * - position: {x, y, z} position in 3D space (applied via howl.pos() method)
  * - pannerAttr: Spatial audio properties (applied via howl.pannerAttr() method)
  *   - panningModel: 'equalpower' or 'HRTF' (default: 'HRTF')
  *   - refDistance: Reference distance for rolloff (default: 1)
@@ -30,6 +30,21 @@
  *   - coneInnerAngle: Inner cone angle in degrees (default: 360)
  *   - coneOuterAngle: Outer cone angle in degrees (default: 360)
  *   - coneOuterGain: Gain outside outer cone (default: 0)
+ *
+ * For audio-reactive lighting, also include:
+ * - reactiveLight: Configuration for a light that responds to audio amplitude
+ *   - enabled: true to enable the reactive light
+ *   - type: THREE.js light type ('PointLight', 'SpotLight', 'DirectionalLight')
+ *   - color: Light color in hex (e.g., 0xff0000 for red)
+ *   - position: {x, y, z} OFFSET from sound position (e.g., {x: 0, y: 3, z: 0} for 3 units above)
+ *   - baseIntensity: Intensity when audio is silent (default: 0)
+ *   - reactivityMultiplier: How much audio affects intensity (default: 10)
+ *   - distance: Light distance (PointLight only)
+ *   - decay: Light decay (PointLight only)
+ *   - smoothing: Smoothing factor for intensity changes (0-1, default: 0.5)
+ *   - frequencyRange: Which frequencies to react to ('bass', 'mid', 'high', 'full')
+ *   - maxIntensity: Maximum light intensity (default: 100)
+ *   - noiseFloor: Ignore audio below this threshold to prevent flicker (default: 0.1)
  *
  * Usage:
  * import { sfxSounds } from './sfxData.js';
@@ -45,7 +60,7 @@
  *
  * // Apply spatial properties AFTER creation (if spatial)
  * if (soundData.spatial) {
- *   howl.pos(...soundData.position);
+ *   howl.pos(soundData.position.x, soundData.position.y, soundData.position.z);
  *   howl.pannerAttr(soundData.pannerAttr);
  * }
  *
@@ -58,6 +73,7 @@
  */
 
 import { GAME_STATES } from "./gameData.js";
+import { sceneObjects } from "./sceneData.js";
 
 export const sfxSounds = {
   // Phone booth ringing (3D spatial audio)
@@ -67,7 +83,11 @@ export const sfxSounds = {
     volume: 1,
     loop: true,
     spatial: true,
-    position: [7, 2, 42], // Phonebooth position
+    position: {
+      x: sceneObjects.phonebooth.position.x,
+      y: 0.9,
+      z: sceneObjects.phonebooth.position.z,
+    },
     pannerAttr: {
       panningModel: "HRTF",
       refDistance: 10,
@@ -87,7 +107,7 @@ export const sfxSounds = {
       enabled: true,
       type: "PointLight", // THREE.js light type
       color: 0xff0000, // Dramatic red light
-      position: [7, 3, 42], // Above phone booth
+      position: { x: 0, y: 3.1, z: 0 }, // Offset from sound position (above phone booth)
       baseIntensity: 0.0, // Completely off when silent
       reactivityMultiplier: 50.0, // Much more dramatic
       distance: 20, // Wider reach
@@ -98,18 +118,6 @@ export const sfxSounds = {
       noiseFloor: 0.125, // Ignore audio below 10% to prevent reverb flicker
     },
   },
-
-  // "cat-meow-hiss-reverb": {
-  //   id: "cat-meow-hiss-reverb",
-  //   src: ["/audio/sfx/cat-meow-hiss-reverb.mp3"],
-  //   volume: 0.7,
-  //   loop: false,
-  //   spatial: false,
-  //   preload: true,
-  //   criteria: { heardCat: true },
-  //   playOnce: true,
-  //   delay: 0.3, // Wait 0.5 seconds after hearing cat before playing
-  // },
 
   "footsteps-gravel": {
     id: "footsteps-gravel",
@@ -138,7 +146,11 @@ export const sfxSounds = {
     volume: 0.8,
     loop: false,
     spatial: true,
-    position: [7, 2, 42], // Phonebooth position
+    position: {
+      x: sceneObjects.phonebooth.position.x,
+      y: sceneObjects.phonebooth.position.y,
+      z: sceneObjects.phonebooth.position.z,
+    },
     pannerAttr: {
       panningModel: "HRTF",
       refDistance: 2,
@@ -207,45 +219,6 @@ export const sfxSounds = {
     spatial: false,
     preload: true,
   },
-};
-
-/**
- * SFX Triggers - Maps game events/colliders to sound IDs
- *
- * These can be used to easily reference sounds from collider data or game states.
- *
- * Usage in colliderData.js:
- * import { sfxTriggers } from './sfxData.js';
- *
- * onEnter: [
- *   { type: "sfx", data: { sound: sfxTriggers.phoneBoothRing, volume: 0.8 } }
- * ]
- */
-export const sfxTriggers = {
-  // Collider-based triggers
-  phoneBoothRing: "phone-ring",
-  phonePickup: "phone-pickup",
-
-  // Surface-based footstep triggers
-  footstepsPavement: "footsteps-pavement",
-  footstepsGravel: "footsteps-gravel",
-
-  // Game state triggers
-  engineAndGun: "engine-and-gun",
-
-  // Typewriter sounds for dialog choices
-  typewriterKeystroke00: "typewriter-keystroke-00",
-  typewriterKeystroke01: "typewriter-keystroke-01",
-  typewriterKeystroke02: "typewriter-keystroke-02",
-  typewriterKeystroke03: "typewriter-keystroke-03",
-  typewriterReturn: "typewriter-return",
-
-  // (add more as needed)
-  // doorOpen: "door-open",
-  // doorClose: "door-close",
-  // glassBreak: "glass-break",
-  // gunshot: "gunshot",
-  // phoneHangup: "phone-hangup",
 };
 
 /**

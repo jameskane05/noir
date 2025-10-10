@@ -100,16 +100,21 @@ const gameManager = new GameManager();
 // Floor top at Y=0.1, character center at Y=0.9 (rests on ground)
 // Camera at top of capsule: Y=0.9+0.8=1.7 (1.6m off ground)
 // Use debug spawn position if available, otherwise default
-const spawnPos = gameManager.getDebugSpawnPosition() || {
+
+const defaultSpawnPos = {
   x: 0,
-  y: 0.9, // Character center height to rest on floor (floor top at Y=0.1, capsule bottom 0.8 below center)
+  y: 0.9,
   z: 0,
 };
-const character = physicsManager.createCharacter(spawnPos, {
+
+const defaultSpawnRot = {
   x: 0,
-  y: 0,
+  y: 180,
   z: 0,
-});
+};
+
+const spawnPos = gameManager.getDebugSpawnPosition() || defaultSpawnPos;
+const character = physicsManager.createCharacter(spawnPos, defaultSpawnRot);
 // Removed visual mesh for character;
 
 // Initialize SFX manager (pass lightManager for audio-reactive lights)
@@ -128,7 +133,9 @@ const characterController = new CharacterController(
   renderer,
   inputManager,
   sfxManager,
-  spark // Pass spark renderer for DoF control
+  spark, // Pass spark renderer for DoF control
+  null, // idleHelper (set later)
+  defaultSpawnRot // Initial rotation from spawn data
 );
 
 // Register SFX from data
@@ -191,7 +198,10 @@ if (gameManager.state.currentState === GAME_STATES.START_SCREEN) {
     circleHeight: 8,
     circleSpeed: 0.05,
     targetPosition: cameraTargetPos,
-    targetRotation: { yaw: THREE.MathUtils.degToRad(0), pitch: 0 },
+    targetRotation: {
+      yaw: THREE.MathUtils.degToRad(defaultSpawnRot.y),
+      pitch: 0,
+    },
     transitionDuration: 8.0,
     uiManager: uiManager,
   });

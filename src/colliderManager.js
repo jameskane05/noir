@@ -472,6 +472,12 @@ class ColliderManager {
       const mesh = this.debugMeshes.get(id);
       if (!mesh) return;
 
+      // Gizmo colliders are always visible for authoring
+      if (data.gizmo) {
+        mesh.visible = enabled;
+        return;
+      }
+
       // Hide if disabled or activation conditions not met
       const isActive = enabled && this.checkActivationConditions(data);
       mesh.visible = isActive;
@@ -500,8 +506,7 @@ class ColliderManager {
 
     this.colliders.forEach(({ id, data, enabled }) => {
       // Create debug mesh if URL param is set OR if this specific collider has gizmo flag
-      const shouldCreateDebugMesh =
-        showColliders || (data.gizmo && this.gizmoManager);
+      const shouldCreateDebugMesh = showColliders || data.gizmo;
       if (!enabled || !shouldCreateDebugMesh) return;
 
       let geometry;
@@ -556,6 +561,10 @@ class ColliderManager {
 
         if (showColliders) {
           console.log(`Added debug mesh for collider: ${id}`);
+        } else if (data.gizmo) {
+          console.log(
+            `Added gizmo debug mesh for collider: ${id} (red wireframe)`
+          );
         }
       }
     });

@@ -67,7 +67,7 @@ export const videos = {
     },
     autoPlay: true,
     delay: 0.5,
-    once: false,
+    once: true,
     priority: 0,
   },
 };

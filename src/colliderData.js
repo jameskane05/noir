@@ -49,6 +49,7 @@
  */
 
 import { GAME_STATES } from "./gameData.js";
+import { sceneObjects } from "./sceneData.js";
 
 export const colliders = [
   // {
@@ -73,9 +74,9 @@ export const colliders = [
   {
     id: "trigger-phonebooth-ring",
     type: "box",
-    position: { x: 14.39, y: 0.82, z: 143.46 }, // 5m away from phonebooth (phonebooth at z:10)
-    rotation: { x: 0, y: 120, z: 0 },
-    dimensions: { x: 6, y: 1.5, z: 1.5 }, // 3x3x3 box
+    position: sceneObjects.phonebooth.position,
+    rotation: { x: 0, y: 0, z: 0 },
+    dimensions: { x: 10, y: 4, z: 10 },
     onEnter: [
       {
         type: "state",
@@ -97,15 +98,18 @@ export const colliders = [
   {
     id: "phonebooth-answer",
     type: "box",
-    position: { x: 7, y: 1, z: 42 }, // At phonebooth location
+    position: {
+      x: sceneObjects.phonebooth.position.x,
+      y: 1,
+      z: sceneObjects.phonebooth.position.z,
+    },
     rotation: { x: 0, y: 0, z: 0 },
-    dimensions: { x: 1, y: 1.5, z: 1 }, // Small box around phone
+    dimensions: { x: 1, y: 4, z: 1 },
     onEnter: [
       {
         type: "state",
         data: { key: "currentState", value: GAME_STATES.ANSWERED_PHONE },
       },
-      // Note: Character moveTo is handled by cameraAnimationData.js (phoneBoothMoveTo)
     ],
     onExit: [],
     once: true,
@@ -118,9 +122,8 @@ export const colliders = [
     type: "box",
     position: { x: -0.5, y: 0.4, z: 42.5 },
     rotation: { x: 0, y: 0, z: 0 },
-    dimensions: { x: 2.5, y: 1.0, z: 2.5 }, // 5x2x5 meter box (half-extents)
+    dimensions: { x: 2.5, y: 1.0, z: 2.5 },
     onEnter: [
-      // Add your events here
       {
         type: "state",
         data: { key: "heardCat", value: true },

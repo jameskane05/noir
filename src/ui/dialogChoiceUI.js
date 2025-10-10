@@ -190,6 +190,43 @@ class DialogChoiceUI {
     };
 
     window.addEventListener("keydown", this.keyboardHandler);
+    this.setupMouseListeners();
+  }
+
+  /**
+   * Setup mouse listeners for scroll wheel and clicks
+   */
+  setupMouseListeners() {
+    this.wheelHandler = (event) => {
+      if (!this.isVisible) return;
+
+      event.preventDefault();
+
+      // deltaY > 0 means scrolling down, deltaY < 0 means scrolling up
+      if (event.deltaY > 0) {
+        this.moveSelection(1); // Scroll down = move selection down
+      } else if (event.deltaY < 0) {
+        this.moveSelection(-1); // Scroll up = move selection up
+      }
+    };
+
+    // Handle clicks when pointer is locked (won't hit button elements)
+    this.clickHandler = (event) => {
+      if (!this.isVisible) return;
+
+      // Check if pointer is locked
+      const isPointerLocked = document.pointerLockElement !== null;
+
+      if (isPointerLocked) {
+        // When pointer locked, clicking confirms the currently selected choice
+        event.preventDefault();
+        this.confirmSelection();
+      }
+      // If pointer is not locked, the individual button click handlers will fire
+    };
+
+    window.addEventListener("wheel", this.wheelHandler, { passive: false });
+    window.addEventListener("click", this.clickHandler);
   }
 
   /**
@@ -404,6 +441,16 @@ class DialogChoiceUI {
     if (this.keyboardHandler) {
       window.removeEventListener("keydown", this.keyboardHandler);
       this.keyboardHandler = null;
+    }
+
+    if (this.wheelHandler) {
+      window.removeEventListener("wheel", this.wheelHandler);
+      this.wheelHandler = null;
+    }
+
+    if (this.clickHandler) {
+      window.removeEventListener("click", this.clickHandler);
+      this.clickHandler = null;
     }
 
     if (this.container && this.container.parentNode) {

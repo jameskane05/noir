@@ -54,9 +54,9 @@ class LightManager {
 
     if (config.position) {
       light.position.set(
-        config.position[0],
-        config.position[1],
-        config.position[2]
+        config.position.x ?? 0,
+        config.position.y ?? 0,
+        config.position.z ?? 0
       );
     }
 
@@ -87,9 +87,9 @@ class LightManager {
 
     if (config.position) {
       light.position.set(
-        config.position[0],
-        config.position[1],
-        config.position[2]
+        config.position.x ?? 0,
+        config.position.y ?? 0,
+        config.position.z ?? 0
       );
     }
 
@@ -122,17 +122,17 @@ class LightManager {
 
     if (config.position) {
       light.position.set(
-        config.position[0],
-        config.position[1],
-        config.position[2]
+        config.position.x ?? 0,
+        config.position.y ?? 0,
+        config.position.z ?? 0
       );
     }
 
     if (config.target) {
       light.target.position.set(
-        config.target[0],
-        config.target[1],
-        config.target[2]
+        config.target.x ?? 0,
+        config.target.y ?? 0,
+        config.target.z ?? 0
       );
       this.scene.add(light.target);
     }

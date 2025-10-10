@@ -1,4 +1,5 @@
 import { GAME_STATES, startScreen } from "./gameData.js";
+import { sceneObjects } from "./sceneData.js";
 
 /**
  * DebugSpawner - Debug utility for spawning into specific game states
@@ -38,7 +39,11 @@ const stateOverrides = {
   PHONE_BOOTH_RINGING: {
     isPlaying: true,
     controlEnabled: true,
-    playerPosition: { x: 14.95, y: 0.9, z: 160.86 },
+    playerPosition: {
+      x: sceneObjects.phonebooth.position.x + 5,
+      y: 0.9,
+      z: sceneObjects.phonebooth.position.z - 15,
+    },
   },
 
   ANSWERED_PHONE: {

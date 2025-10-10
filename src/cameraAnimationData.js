@@ -54,13 +54,18 @@
 import { GAME_STATES } from "./gameData.js";
 import { checkCriteria } from "./criteriaHelper.js";
 import { videos } from "./videoData.js";
+import { sceneObjects } from "./sceneData.js";
 
 export const cameraAnimations = {
   phoneBoothLookat: {
     id: "phoneBoothLookat",
     type: "lookat",
     description: "Look at phone booth when it starts ringing",
-    position: { x: 7, y: 2, z: 42 }, // Look at phonebooth (center/eye level)
+    position: {
+      x: sceneObjects.phonebooth.position.x,
+      y: 0.9,
+      z: sceneObjects.phonebooth.position.z,
+    },
     duration: 1.5,
     restoreControl: true,
     enableZoom: true, // Enable dramatic zoom/DoF when looking at phone booth
@@ -68,9 +73,9 @@ export const cameraAnimations = {
       zoomFactor: 2.0, // More dramatic 2x zoom
       minAperture: 0.2, // Stronger DoF effect
       maxAperture: 0.4,
-      transitionStart: 0.6, // Start zooming earlier (60% of look-at)
+      transitionStart: 0.5, // Start zooming earlier (60% of look-at)
       transitionDuration: 2.5, // Slower, more dramatic transition
-      holdDuration: 3.0, // Hold the zoom longer for dramatic effect
+      holdDuration: 2.0, // Hold the zoom longer for dramatic effect
     },
     criteria: { currentState: GAME_STATES.PHONE_BOOTH_RINGING },
     priority: 100,
@@ -82,7 +87,11 @@ export const cameraAnimations = {
     id: "phoneBoothMoveTo",
     type: "moveTo",
     description: "Move character into phone booth when player enters trigger",
-    position: { x: 8.05, y: 0.9, z: 41.65 }, // Center of booth (y: 0.4 for character center)
+    position: {
+      x: sceneObjects.phonebooth.position.x + 1,
+      y: 0.4,
+      z: sceneObjects.phonebooth.position.z,
+    },
     rotation: {
       yaw: Math.PI / 2, // Face the phone (90 degrees)
       pitch: 0,

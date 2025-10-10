@@ -10,7 +10,8 @@ class CharacterController {
     inputManager,
     sfxManager = null,
     sparkRenderer = null,
-    idleHelper = null
+    idleHelper = null,
+    initialRotation = null
   ) {
     this.character = character;
     this.camera = camera;
@@ -20,9 +21,14 @@ class CharacterController {
     this.sparkRenderer = sparkRenderer;
     this.idleHelper = idleHelper;
 
-    // Camera rotation
-    this.yaw = THREE.MathUtils.degToRad(-180); // Initial yaw in radians
-    this.pitch = 0;
+    // Camera rotation (use provided initial rotation or default to -180 degrees)
+    const defaultYaw = THREE.MathUtils.degToRad(-180);
+    this.yaw = initialRotation
+      ? THREE.MathUtils.degToRad(initialRotation.y)
+      : defaultYaw;
+    this.pitch = initialRotation
+      ? THREE.MathUtils.degToRad(initialRotation.x || 0)
+      : 0;
     this.targetYaw = this.yaw;
     this.targetPitch = this.pitch;
 
