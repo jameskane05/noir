@@ -91,7 +91,6 @@ export const colliders = [
         $lt: GAME_STATES.PHONE_BOOTH_RINGING,
       },
     },
-    gizmo: true,
   },
 
   // Phonebooth interaction - only available after hearing the phone ring

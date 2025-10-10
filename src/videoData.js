@@ -29,23 +29,16 @@
  *
  * Usage:
  * import { videos } from './videoData.js';
- * videoManager.playVideo(videos.driveBy);
+ * videoManager.playVideo('drive-by');
+ * // or reference directly: videos.driveBy.position
  */
 
 import { GAME_STATES } from "./gameData.js";
 import { checkCriteria } from "./criteriaHelper.js";
 
-/**
- * Video IDs - Constants for type safety
- */
-export const VIDEO_IDS = {
-  DRIVE_BY: "drive-by",
-  CAT: "cat",
-};
-
 export const videos = {
-  [VIDEO_IDS.DRIVE_BY]: {
-    id: VIDEO_IDS.DRIVE_BY,
+  driveBy: {
+    id: "drive-by",
     videoPath: "/video/1007-bw-2.webm",
     position: { x: -27.82, y: 1, z: 53.86 },
     rotation: { x: 0, y: -Math.PI / 2, z: 0 },
@@ -60,14 +53,14 @@ export const videos = {
     once: false,
     priority: 0,
   },
-  [VIDEO_IDS.CAT]: {
-    id: VIDEO_IDS.CAT,
+  cat: {
+    id: "cat",
     videoPath: "/video/cat.webm",
-    position: { x: -102.44, y: -6.4, z: -118.24 },
-    rotation: { x: 0, y: -Math.PI / 2, z: 0 },
+    position: { x: -78.53, y: -6.79, z: 46.03 },
+    rotation: { x: 0, y: Math.PI / 2, z: 0 },
     scale: { x: 2, y: 2, z: 2 },
     loop: false,
-    muted: true,
+    muted: false,
     billboard: true,
     criteria: {
       heardCat: true,

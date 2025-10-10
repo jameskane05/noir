@@ -569,19 +569,19 @@ class GizmoManager {
 
     console.log(`\n=== ${target.id} (${target.type}) ===`);
     console.log(
-      `position: [${pos.x.toFixed(2)}, ${pos.y.toFixed(2)}, ${pos.z.toFixed(
+      `position: { x: ${pos.x.toFixed(2)}, y: ${pos.y.toFixed(
         2
-      )}],`
+      )}, z: ${pos.z.toFixed(2)} },`
     );
     console.log(
-      `rotation: [${rot.x.toFixed(4)}, ${rot.y.toFixed(4)}, ${rot.z.toFixed(
+      `rotation: { x: ${rot.x.toFixed(4)}, y: ${rot.y.toFixed(
         4
-      )}],`
+      )}, z: ${rot.z.toFixed(4)} },`
     );
     console.log(
-      `scale: [${scale.x.toFixed(2)}, ${scale.y.toFixed(2)}, ${scale.z.toFixed(
+      `scale: { x: ${scale.x.toFixed(2)}, y: ${scale.y.toFixed(
         2
-      )}],`
+      )}, z: ${scale.z.toFixed(2)} },`
     );
     console.log("");
   }

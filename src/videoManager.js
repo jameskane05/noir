@@ -43,14 +43,26 @@ class VideoManager {
    * @param {Object} state - Current game state
    */
   updateVideosForState(state) {
+    console.log("VideoManager: updateVideosForState called with state:", state);
+    console.log(
+      "VideoManager: Total videos in data:",
+      Object.keys(videos).length
+    );
+
     // Check all videos defined in videoData
     for (const [videoId, videoConfig] of Object.entries(videos)) {
-      // Check if video has criteria
-      if (!videoConfig.criteria) {
-        continue;
-      }
+      console.log(`VideoManager: Checking video "${videoId}"...`);
 
-      const matchesCriteria = checkCriteria(state, videoConfig.criteria);
+      // If no criteria, treat as always matching
+      const matchesCriteria = videoConfig.criteria
+        ? checkCriteria(state, videoConfig.criteria)
+        : true;
+
+      console.log(
+        `VideoManager: Video "${videoId}" matchesCriteria:`,
+        matchesCriteria
+      );
+
       const player = this.videoPlayers.get(videoId);
       const isPlaying = player && player.isPlaying;
       const hasPlayedOnce = this.playedOnce.has(videoId);

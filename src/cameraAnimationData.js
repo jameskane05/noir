@@ -50,6 +50,7 @@
 
 import { GAME_STATES } from "./gameData.js";
 import { checkCriteria } from "./criteriaHelper.js";
+import { videos } from "./videoData.js";
 
 export const cameraAnimations = {
   phoneBoothLookat: {
@@ -98,7 +99,7 @@ export const cameraAnimations = {
     id: "catLookat",
     type: "lookat",
     description: "Look at cat video when player hears cat sound",
-    position: { x: -112.1, y: -1.4, z: -120.0 }, // Cat video position
+    position: videos.cat.position,
     duration: 1.0,
     restoreControl: true,
     enableZoom: true,
