@@ -294,6 +294,8 @@ class ColliderManager {
       targetMesh,
       duration = 2.0,
       restoreControl = true,
+      returnToOriginalView = false,
+      returnDuration = null,
       enableZoom = false,
       zoomOptions = {},
     } = data;
@@ -348,6 +350,8 @@ class ColliderManager {
       position: targetPosition,
       duration,
       restoreControl,
+      returnToOriginalView,
+      returnDuration: returnDuration || duration,
       enableZoom,
       zoomOptions,
       colliderId,

@@ -203,25 +203,25 @@ class SceneManager {
     // Set quaternion if provided
     if (quaternion) {
       splatMesh.quaternion.set(
-        quaternion[0],
-        quaternion[1],
-        quaternion[2],
-        quaternion[3]
-      ); // [x, y, z, w]
+        quaternion.x,
+        quaternion.y,
+        quaternion.z,
+        quaternion.w
+      );
     } else if (rotation) {
-      splatMesh.rotation.set(rotation[0], rotation[1], rotation[2]);
+      splatMesh.rotation.set(rotation.x, rotation.y, rotation.z);
     }
 
     // Set position
     if (position) {
-      splatMesh.position.set(position[0], position[1], position[2]);
+      splatMesh.position.set(position.x, position.y, position.z);
     }
 
     // Set scale
     if (scale) {
-      if (Array.isArray(scale)) {
-        splatMesh.scale.set(scale[0], scale[1], scale[2]);
-      } else {
+      if (typeof scale === "object" && "x" in scale) {
+        splatMesh.scale.set(scale.x, scale.y, scale.z);
+      } else if (typeof scale === "number") {
         splatMesh.scale.setScalar(scale);
       }
     }
@@ -284,19 +284,19 @@ class SceneManager {
 
           // Set position
           if (position) {
-            finalObject.position.set(position[0], position[1], position[2]);
+            finalObject.position.set(position.x, position.y, position.z);
           }
 
           // Set rotation
           if (rotation) {
-            finalObject.rotation.set(rotation[0], rotation[1], rotation[2]);
+            finalObject.rotation.set(rotation.x, rotation.y, rotation.z);
           }
 
           // Set scale
           if (scale) {
-            if (Array.isArray(scale)) {
-              finalObject.scale.set(scale[0], scale[1], scale[2]);
-            } else {
+            if (typeof scale === "object" && "x" in scale) {
+              finalObject.scale.set(scale.x, scale.y, scale.z);
+            } else if (typeof scale === "number") {
               finalObject.scale.setScalar(scale);
             }
           }
@@ -471,26 +471,29 @@ class SceneManager {
     if (localTransform) {
       if (localTransform.position) {
         child.position.set(
-          localTransform.position[0],
-          localTransform.position[1],
-          localTransform.position[2]
+          localTransform.position.x,
+          localTransform.position.y,
+          localTransform.position.z
         );
       }
       if (localTransform.rotation) {
         child.rotation.set(
-          localTransform.rotation[0],
-          localTransform.rotation[1],
-          localTransform.rotation[2]
+          localTransform.rotation.x,
+          localTransform.rotation.y,
+          localTransform.rotation.z
         );
       }
       if (localTransform.scale) {
-        if (Array.isArray(localTransform.scale)) {
+        if (
+          typeof localTransform.scale === "object" &&
+          "x" in localTransform.scale
+        ) {
           child.scale.set(
-            localTransform.scale[0],
-            localTransform.scale[1],
-            localTransform.scale[2]
+            localTransform.scale.x,
+            localTransform.scale.y,
+            localTransform.scale.z
           );
-        } else {
+        } else if (typeof localTransform.scale === "number") {
           child.scale.setScalar(localTransform.scale);
         }
       }

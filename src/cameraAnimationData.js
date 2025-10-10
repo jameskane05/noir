@@ -26,6 +26,8 @@
  * - position: {x, y, z} world position to look at
  * - duration: Duration of the look-at in seconds (default: 2.0)
  * - restoreControl: If true, restore input controls when complete (default: true)
+ * - returnToOriginalView: If true, return to original view before restoring control (default: false)
+ * - returnDuration: Duration of the return animation in seconds (default: same as duration)
  * - enableZoom: If true, enable zoom/DoF effect (default: false)
  * - zoomOptions: Optional zoom configuration
  *   - zoomFactor: Camera zoom multiplier (e.g., 2.0 for 2x zoom)
@@ -33,7 +35,8 @@
  *   - maxAperture: DoF effect strength at rest
  *   - transitionStart: When to start zoom (0-1, fraction of duration)
  *   - transitionDuration: How long zoom transition takes in seconds
- *   - holdDuration: How long to hold zoom before returning
+ *   - holdDuration: How long to hold at target. If returnToOriginalView=true, holds before return
+ *                   (DoF/zoom reset DURING the return animation). Otherwise, holds after lookat completes.
  *
  * For type "moveTo":
  * - position: {x, y, z} world position to move character to
@@ -79,7 +82,7 @@ export const cameraAnimations = {
     id: "phoneBoothMoveTo",
     type: "moveTo",
     description: "Move character into phone booth when player enters trigger",
-    position: { x: 8.05, y: 0.4, z: 41.65 }, // Center of booth (y: 0.4 for character center)
+    position: { x: 8.05, y: 0.9, z: 41.65 }, // Center of booth (y: 0.4 for character center)
     rotation: {
       yaw: Math.PI / 2, // Face the phone (90 degrees)
       pitch: 0,
@@ -100,16 +103,17 @@ export const cameraAnimations = {
     type: "lookat",
     description: "Look at cat video when player hears cat sound",
     position: videos.cat.position,
-    duration: 1.0,
+    duration: 1.25,
+    returnToOriginalView: true,
     restoreControl: true,
     enableZoom: true,
     zoomOptions: {
-      zoomFactor: 1.8, // Moderate zoom
+      zoomFactor: 1.8,
       minAperture: 0.15,
       maxAperture: 0.35,
-      transitionStart: 0.7, // Start zoom at 70% of look-at
+      transitionStart: 0.7,
       transitionDuration: 2.0,
-      holdDuration: 2.5, // Hold zoom for 2.5 seconds
+      holdDuration: 3.25,
     },
     criteria: { heardCat: true },
     priority: 100,
@@ -128,8 +132,6 @@ export const cameraAnimations = {
     restoreInput: true,
     delay: 2.0, // Wait 2 seconds after DRIVE_BY state before animation
   },
-
-  // Add your camera animations here...
 };
 
 /**

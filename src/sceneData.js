@@ -7,9 +7,9 @@
  * - id: Unique identifier
  * - type: Type of object ('splat', 'gltf', etc.)
  * - path: Path to the asset file
- * - position: THREE.Vector3-compatible array [x, y, z]
- * - rotation: Euler angles [x, y, z] in radians
- * - scale: Uniform scale or [x, y, z] array
+ * - position: {x, y, z} position in 3D space
+ * - rotation: {x, y, z} rotation in radians (Euler angles)
+ * - scale: {x, y, z} scale multipliers or uniform number
  * - description: Human-readable description
  * - options: Type-specific options
  * - criteria: Optional object with key-value pairs that must match game state
@@ -46,10 +46,10 @@ export const sceneObjects = {
     type: "splat",
     path: "/exterior-test-2.compressed.ply",
     description: "Main exterior environment splat mesh",
-    position: [0, -0.5, 0],
-    rotation: [0, 0, 0],
-    scale: [1, 1, 1],
-    quaternion: [1, 0, 0, 0], // [x, y, z, w]
+    position: { x: 0, y: -0.5, z: 0 },
+    rotation: { x: 0, y: 0, z: 0 },
+    scale: { x: 1, y: 1, z: 1 },
+    quaternion: { x: 1, y: 0, z: 0, w: 0 },
     loadByDefault: true, // Always load this scene
     priority: 100, // Load first
   },
@@ -59,9 +59,9 @@ export const sceneObjects = {
     type: "gltf",
     path: "/gltf/phonebooth.glb",
     description: "Phone booth GLTF model",
-    position: [14.95, -2.5, 160.86],
-    rotation: [0, Math.PI / 2, 0], // 90 degrees around Y axis
-    scale: [2.5, 2.5, 2.5],
+    position: { x: 14.95, y: -2.5, z: 160.86 },
+    rotation: { x: 0, y: Math.PI / 2, z: 0 }, // 90 degrees around Y axis
+    scale: { x: 2.5, y: 2.5, z: 2.5 },
     options: {
       // Create a container group for proper scaling
       useContainer: true,

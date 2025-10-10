@@ -281,6 +281,8 @@ class CameraAnimationManager {
         position: lookAtData.position,
         duration: lookAtData.duration || 2.0,
         restoreControl: lookAtData.restoreControl !== false,
+        returnToOriginalView: lookAtData.returnToOriginalView || false,
+        returnDuration: lookAtData.returnDuration || lookAtData.duration || 2.0,
         enableZoom: lookAtData.enableZoom || false,
         zoomOptions: lookAtData.zoomOptions || {},
         colliderId: `camera-data-${lookAtData.id}`,

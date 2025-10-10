@@ -36,6 +36,12 @@ class CharacterController {
     this.lookAtOnComplete = null;
     this.lookAtDisabledInput = false;
     this.inputDisabled = false;
+    this.lookAtReturnToOriginalView = false;
+    this.lookAtReturnDuration = 0;
+    this.lookAtReturning = false;
+    this.lookAtHolding = false;
+    this.lookAtHoldTimer = 0;
+    this.lookAtHoldDuration = 0;
 
     // Character move-to system
     this.isMovingTo = false;
@@ -65,6 +71,7 @@ class CharacterController {
     this.dofTransitionStartProgress = 0.8; // Start DoF transition at 80% of look-at animation
     this.dofTransitionDuration = 2; // How long the DoF transition takes in seconds
     this.dofTransitionProgress = 0; // Current progress of DoF transition (0 to 1)
+    this.returnTransitionDuration = null; // Override transition duration during return-to-original
 
     // FOV Zoom system (synced with DoF)
     this.baseFov = null; // Will be set from camera's initial FOV
@@ -161,6 +168,8 @@ class CharacterController {
       const zoomOptions = data.zoomOptions || {};
       // If restoreControl is false, don't disable input (let moveTo or other system manage it)
       const disableInput = data.restoreControl !== false;
+      const returnToOriginalView = data.returnToOriginalView || false;
+      const returnDuration = data.returnDuration || data.duration;
 
       this.lookAt(
         targetPos,
@@ -168,7 +177,9 @@ class CharacterController {
         onComplete,
         enableZoom,
         zoomOptions,
-        disableInput
+        disableInput,
+        returnToOriginalView,
+        returnDuration
       );
     });
 
@@ -270,6 +281,8 @@ class CharacterController {
    * @param {boolean} enableZoom - Whether to enable zoom/DoF effects (default: false)
    * @param {Object} zoomOptions - Zoom/DoF configuration options
    * @param {boolean} disableInput - Whether to disable input during lookAt (default: true)
+   * @param {boolean} returnToOriginalView - If true, return to original view before restoring control (default: false)
+   * @param {number} returnDuration - Duration of the return animation in seconds (default: same as duration)
    */
   lookAt(
     targetPosition,
@@ -277,7 +290,9 @@ class CharacterController {
     onComplete = null,
     enableZoom = false,
     zoomOptions = {},
-    disableInput = true
+    disableInput = true,
+    returnToOriginalView = false,
+    returnDuration = null
   ) {
     this.isLookingAt = true;
     this.lookAtTarget = targetPosition.clone();
@@ -285,6 +300,11 @@ class CharacterController {
     this.lookAtProgress = 0;
     this.lookAtOnComplete = onComplete;
     this.lookAtDisabledInput = disableInput; // Store whether we disabled input
+    this.lookAtReturnToOriginalView = returnToOriginalView;
+    this.lookAtReturnDuration = returnDuration || duration;
+    this.lookAtReturning = false;
+    this.lookAtHolding = false;
+    this.lookAtHoldTimer = 0;
 
     // Parse zoom options with defaults
     const {
@@ -293,8 +313,15 @@ class CharacterController {
       maxAperture = 0.35, // Maximum aperture (more blur close-up)
       transitionStart = 0.8, // When to start DoF transition (0-1)
       transitionDuration = 2.0, // How long the DoF transition takes
-      holdDuration = 2.0, // How long to hold DoF after look-at completes
+      holdDuration = 2.0, // How long to hold DoF after look-at completes (or before return if returnToOriginal)
     } = zoomOptions;
+
+    // If returning to original view, use holdDuration to pause before returning
+    if (returnToOriginalView && enableZoom) {
+      this.lookAtHoldDuration = holdDuration;
+    } else {
+      this.lookAtHoldDuration = 0;
+    }
 
     // Store zoom config for this look-at
     this.currentZoomConfig = {
@@ -686,8 +713,11 @@ class CharacterController {
     if (!this.dofTransitioning) return;
 
     // Update transition progress based on configured duration
+    // Use returnTransitionDuration during return-to-original if set
     const transitionDuration =
-      this.currentZoomConfig?.transitionDuration || this.dofTransitionDuration;
+      this.returnTransitionDuration ||
+      this.currentZoomConfig?.transitionDuration ||
+      this.dofTransitionDuration;
     this.dofTransitionProgress += dt / transitionDuration;
     const t = Math.min(1.0, this.dofTransitionProgress);
 
@@ -733,8 +763,11 @@ class CharacterController {
     if (!this.zoomTransitioning) return;
 
     // Update zoom transition progress (using configured duration, same as DoF)
+    // Use returnTransitionDuration during return-to-original if set
     const transitionDuration =
-      this.currentZoomConfig?.transitionDuration || this.dofTransitionDuration;
+      this.returnTransitionDuration ||
+      this.currentZoomConfig?.transitionDuration ||
+      this.dofTransitionDuration;
     this.zoomTransitionProgress += dt / transitionDuration;
     const t = Math.min(1.0, this.zoomTransitionProgress);
 
@@ -940,55 +973,167 @@ class CharacterController {
 
     // Handle camera look-at sequence
     if (this.isLookingAt) {
-      this.lookAtProgress += dt / this.lookAtDuration;
+      // Handle holding phase (pause before returning to original)
+      if (this.lookAtHolding) {
+        this.lookAtHoldTimer += dt;
 
-      // Start DoF and zoom transitions when we reach the configured threshold
-      const transitionStart =
-        this.currentZoomConfig?.transitionStart ||
-        this.dofTransitionStartProgress;
-      if (
-        this.lookAtDofActive &&
-        !this.dofTransitioning &&
-        this.lookAtProgress >= transitionStart
-      ) {
-        this.dofTransitioning = true;
-        this.startFov = this.currentFov; // Capture current FOV as start for zoom
-        this.zoomTransitioning = true;
-        console.log(
-          `CharacterController: Starting DoF and zoom transitions at ${(
-            this.lookAtProgress * 100
-          ).toFixed(0)}% (threshold: ${(transitionStart * 100).toFixed(0)}%)`
-        );
+        if (this.lookAtHoldTimer >= this.lookAtHoldDuration) {
+          // Hold complete, start return phase
+          this.lookAtHolding = false;
+          this.lookAtReturning = true;
+          this.lookAtProgress = 0;
+          console.log(
+            `CharacterController: Hold complete, starting return to original view (${this.lookAtReturnDuration}s)`
+          );
+
+          // Start DoF/zoom reset immediately (so they return to normal as camera returns)
+          if (this.sparkRenderer && this.lookAtDofActive) {
+            // Manually trigger the reset transition
+            this.dofHoldTimer = 0;
+            this.targetFocalDistance = this.baseFocalDistance;
+            this.targetApertureSize = this.baseApertureSize;
+            this.lookAtDofActive = false;
+            this.dofTransitioning = true;
+            this.dofTransitionProgress = 0; // Reset for return transition
+
+            // Also reset zoom
+            this.startFov = this.currentFov; // Capture current FOV for smooth transition
+            this.targetFov = this.baseFov;
+            this.zoomTransitioning = true;
+            this.zoomTransitionProgress = 0; // Reset zoom progress
+
+            // Override transition duration to match return duration
+            this.returnTransitionDuration = this.lookAtReturnDuration;
+
+            console.log(
+              `CharacterController: Starting DoF/zoom reset during return (${this.lookAtReturnDuration}s)`
+            );
+          }
+
+          // Swap start and end quaternions for return journey
+          const temp = this.lookAtStartQuat.clone();
+          this.lookAtStartQuat.copy(this.lookAtEndQuat);
+          this.lookAtEndQuat.copy(temp);
+        }
+        // Stay at target orientation while holding (no need to update quaternion)
+        return; // Skip rest of lookat update during hold
+      }
+
+      // Use appropriate duration based on current phase
+      const currentDuration = this.lookAtReturning
+        ? this.lookAtReturnDuration
+        : this.lookAtDuration;
+      this.lookAtProgress += dt / currentDuration;
+
+      // Start DoF and zoom transitions when we reach the configured threshold (only during initial lookat, not return)
+      if (!this.lookAtReturning) {
+        const transitionStart =
+          this.currentZoomConfig?.transitionStart ||
+          this.dofTransitionStartProgress;
+        if (
+          this.lookAtDofActive &&
+          !this.dofTransitioning &&
+          this.lookAtProgress >= transitionStart
+        ) {
+          this.dofTransitioning = true;
+          this.startFov = this.currentFov; // Capture current FOV as start for zoom
+          this.zoomTransitioning = true;
+          console.log(
+            `CharacterController: Starting DoF and zoom transitions at ${(
+              this.lookAtProgress * 100
+            ).toFixed(0)}% (threshold: ${(transitionStart * 100).toFixed(0)}%)`
+          );
+        }
       }
 
       if (this.lookAtProgress >= 1.0) {
-        // Look-at complete
         this.lookAtProgress = 1.0;
-        this.isLookingAt = false;
 
-        // Re-enable input manager only if we disabled it
-        if (this.lookAtDisabledInput) {
-          this.inputManager.enable();
-        }
+        // Check if we need to return to original view
+        if (this.lookAtReturnToOriginalView && !this.lookAtReturning) {
+          // Check if we should hold before returning
+          if (this.lookAtHoldDuration > 0) {
+            // Start holding phase
+            this.lookAtHolding = true;
+            this.lookAtHoldTimer = 0;
+            console.log(
+              `CharacterController: Holding at target for ${this.lookAtHoldDuration}s before returning`
+            );
+          } else {
+            // No hold, start return immediately
+            this.lookAtReturning = true;
+            this.lookAtProgress = 0;
+            console.log(
+              `CharacterController: Starting return to original view (${this.lookAtReturnDuration}s)`
+            );
 
-        // Reset glance state
-        this.glanceState = null;
-        this.glanceTimer = 0;
-        this.wasIdleAllowed = false;
-        this.currentRoll = 0; // Reset head tilt
+            // Start DoF/zoom reset immediately (so they return to normal as camera returns)
+            if (this.sparkRenderer && this.lookAtDofActive) {
+              // Manually trigger the reset transition
+              this.dofHoldTimer = 0;
+              this.targetFocalDistance = this.baseFocalDistance;
+              this.targetApertureSize = this.baseApertureSize;
+              this.lookAtDofActive = false;
+              this.dofTransitioning = true;
+              this.dofTransitionProgress = 0; // Reset for return transition
 
-        // Start DoF hold timer (don't immediately return to base)
-        if (this.sparkRenderer && this.lookAtDofActive) {
-          const holdDuration =
-            this.currentZoomConfig?.holdDuration || this.dofHoldDuration;
-          this.dofHoldTimer = holdDuration;
-          console.log(`CharacterController: Holding DoF for ${holdDuration}s`);
-        }
+              // Also reset zoom
+              this.startFov = this.currentFov; // Capture current FOV for smooth transition
+              this.targetFov = this.baseFov;
+              this.zoomTransitioning = true;
+              this.zoomTransitionProgress = 0; // Reset zoom progress
 
-        // Call completion callback if provided
-        if (this.lookAtOnComplete) {
-          this.lookAtOnComplete();
-          this.lookAtOnComplete = null;
+              // Override transition duration to match return duration
+              this.returnTransitionDuration = this.lookAtReturnDuration;
+
+              console.log(
+                `CharacterController: Starting DoF/zoom reset during return (${this.lookAtReturnDuration}s)`
+              );
+            }
+
+            // Swap start and end quaternions for return journey
+            const temp = this.lookAtStartQuat.clone();
+            this.lookAtStartQuat.copy(this.lookAtEndQuat);
+            this.lookAtEndQuat.copy(temp);
+          }
+        } else {
+          // Look-at complete (or return complete)
+          this.isLookingAt = false;
+          this.lookAtReturning = false;
+          this.lookAtHolding = false;
+          this.returnTransitionDuration = null; // Clear return transition override
+
+          // Re-enable input manager only if we disabled it
+          if (this.lookAtDisabledInput) {
+            this.inputManager.enable();
+          }
+
+          // Reset glance state
+          this.glanceState = null;
+          this.glanceTimer = 0;
+          this.wasIdleAllowed = false;
+          this.currentRoll = 0; // Reset head tilt
+
+          // Start DoF/zoom reset timer (only if NOT returning to original view)
+          // If returnToOriginalView was true, the reset already happened during the return phase
+          if (
+            this.sparkRenderer &&
+            this.lookAtDofActive &&
+            !this.lookAtReturnToOriginalView
+          ) {
+            const resetDuration =
+              this.currentZoomConfig?.holdDuration || this.dofHoldDuration;
+            this.dofHoldTimer = resetDuration;
+            console.log(
+              `CharacterController: Holding DoF for ${resetDuration}s before resetting`
+            );
+          }
+
+          // Call completion callback if provided
+          if (this.lookAtOnComplete) {
+            this.lookAtOnComplete();
+            this.lookAtOnComplete = null;
+          }
         }
       }
 
