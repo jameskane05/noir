@@ -99,17 +99,17 @@ export const sfxSounds = {
     },
   },
 
-  "cat-meow-hiss-reverb": {
-    id: "cat-meow-hiss-reverb",
-    src: ["/audio/sfx/cat-meow-hiss-reverb.mp3"],
-    volume: 0.7,
-    loop: false,
-    spatial: false,
-    preload: true,
-    criteria: { heardCat: true },
-    playOnce: true,
-    delay: 0.5, // Wait 0.5 seconds after hearing cat before playing
-  },
+  // "cat-meow-hiss-reverb": {
+  //   id: "cat-meow-hiss-reverb",
+  //   src: ["/audio/sfx/cat-meow-hiss-reverb.mp3"],
+  //   volume: 0.7,
+  //   loop: false,
+  //   spatial: false,
+  //   preload: true,
+  //   criteria: { heardCat: true },
+  //   playOnce: true,
+  //   delay: 0.3, // Wait 0.5 seconds after hearing cat before playing
+  // },
 
   "footsteps-gravel": {
     id: "footsteps-gravel",

@@ -127,6 +127,11 @@ class VideoManager {
         rotation: videoConfig.rotation,
         scale: videoConfig.scale,
         loop: videoConfig.loop,
+        muted: videoConfig.muted,
+        volume: videoConfig.volume,
+        spatialAudio: videoConfig.spatialAudio,
+        audioPositionOffset: videoConfig.audioPositionOffset,
+        pannerAttr: videoConfig.pannerAttr,
         billboard: videoConfig.billboard,
       });
 
@@ -135,6 +140,12 @@ class VideoManager {
 
       // Register with gizmo manager if gizmo flag is set
       if (videoConfig.gizmo) {
+        // Disable billboard for gizmo-enabled videos to avoid conflict
+        player.config.billboard = false;
+        console.log(
+          `VideoManager: Disabled billboard for "${videoId}" (gizmo enabled)`
+        );
+
         if (this.gizmoManager && player.videoMesh) {
           this.gizmoManager.registerObject(player.videoMesh, videoId, "video");
           // Attach immediately so the helper is visible without click
@@ -177,6 +188,9 @@ class VideoManager {
       this.gizmoManager &&
       player.videoMesh
     ) {
+      // Disable billboard for gizmo-enabled videos to avoid conflict
+      player.config.billboard = false;
+
       console.log(
         `VideoManager: Retry registering "${videoId}" with gizmo and selecting it`
       );
@@ -244,10 +258,21 @@ class VideoPlayer {
     // Video configuration
     this.config = {
       videoPath: options.videoPath,
-      position: options.position || [0, 0, 0],
-      rotation: options.rotation || [0, 0, 0],
-      scale: options.scale || [1, 1, 1],
+      position: options.position || { x: 0, y: 0, z: 0 },
+      rotation: options.rotation || { x: 0, y: 0, z: 0 },
+      scale: options.scale || { x: 1, y: 1, z: 1 },
       loop: options.loop !== undefined ? options.loop : false,
+      muted: options.muted !== undefined ? options.muted : true,
+      volume: options.volume !== undefined ? options.volume : 1.0,
+      spatialAudio: options.spatialAudio || false,
+      audioPositionOffset: options.audioPositionOffset || { x: 0, y: 0, z: 0 },
+      pannerAttr: options.pannerAttr || {
+        panningModel: "HRTF",
+        refDistance: 1,
+        rolloffFactor: 1,
+        distanceModel: "inverse",
+        maxDistance: 10000,
+      },
       billboard: options.billboard !== undefined ? options.billboard : false,
     };
 
@@ -261,6 +286,12 @@ class VideoPlayer {
     this.isPlaying = false;
     this.isInitialized = false;
     this.canvasReady = false;
+
+    // Web Audio API for spatial audio
+    this.audioContext = null;
+    this.audioSource = null;
+    this.audioPanner = null;
+    this.audioGain = null;
   }
 
   /**
@@ -274,9 +305,17 @@ class VideoPlayer {
     this.video.src = this.config.videoPath;
     this.video.crossOrigin = "anonymous";
     this.video.loop = this.config.loop;
-    this.video.muted = true; // Mute for autoplay to work (browser restriction)
     this.video.playsInline = true;
     this.video.preload = "auto";
+
+    // Set up spatial audio if enabled
+    if (this.config.spatialAudio && !this.config.muted) {
+      this.setupSpatialAudio();
+    } else {
+      // Use regular video volume if not spatial
+      this.video.muted = this.config.muted;
+      this.video.volume = this.config.volume;
+    }
 
     // Create canvas for WebM alpha extraction
     this.canvas = document.createElement("canvas");
@@ -294,7 +333,7 @@ class VideoPlayer {
     const material = new THREE.MeshBasicMaterial({
       map: this.videoTexture,
       transparent: true,
-      side: THREE.DoubleSide,
+      side: THREE.FrontSide,
       toneMapped: false,
       depthTest: true,
       depthWrite: true, // allow videos to write to depth so splats can occlude them
@@ -306,9 +345,21 @@ class VideoPlayer {
 
     // Create mesh
     this.videoMesh = new THREE.Mesh(geometry, material);
-    this.videoMesh.position.set(...this.config.position);
-    this.videoMesh.rotation.set(...this.config.rotation);
-    this.videoMesh.scale.set(...this.config.scale);
+    this.videoMesh.position.set(
+      this.config.position.x,
+      this.config.position.y,
+      this.config.position.z
+    );
+    this.videoMesh.rotation.set(
+      this.config.rotation.x,
+      this.config.rotation.y,
+      this.config.rotation.z
+    );
+    this.videoMesh.scale.set(
+      this.config.scale.x,
+      this.config.scale.y,
+      this.config.scale.z
+    );
     // Do not force render order; let depth test handle occlusion with splats
 
     // Store material reference
@@ -317,9 +368,9 @@ class VideoPlayer {
 
     // Store initial rotation for billboarding offset
     this.initialRotation = {
-      x: this.config.rotation[0],
-      y: this.config.rotation[1],
-      z: this.config.rotation[2],
+      x: this.config.rotation.x,
+      y: this.config.rotation.y,
+      z: this.config.rotation.z,
     };
 
     // Add to scene
@@ -547,6 +598,11 @@ class VideoPlayer {
       }
     }
 
+    // Update spatial audio listener position
+    if (this.config.spatialAudio && this.isPlaying) {
+      this.updateSpatialAudio(this.camera);
+    }
+
     // Billboard to camera if enabled (Y-axis only)
     if (this.config.billboard && this.videoMesh && this.camera) {
       // Calculate angle to camera in XZ plane only
@@ -560,10 +616,186 @@ class VideoPlayer {
   }
 
   /**
+   * Set up spatial audio using Web Audio API
+   */
+  setupSpatialAudio() {
+    try {
+      // Create or reuse global audio context
+      if (!window.videoAudioContext) {
+        window.videoAudioContext = new (window.AudioContext ||
+          window.webkitAudioContext)();
+      }
+      this.audioContext = window.videoAudioContext;
+
+      // Create audio source from video element
+      this.audioSource = this.audioContext.createMediaElementSource(this.video);
+
+      // Create panner node for spatial audio
+      this.audioPanner = this.audioContext.createPanner();
+
+      // Apply panner attributes
+      const attr = this.config.pannerAttr;
+      this.audioPanner.panningModel = attr.panningModel || "HRTF";
+      this.audioPanner.refDistance = attr.refDistance || 1;
+      this.audioPanner.rolloffFactor = attr.rolloffFactor || 1;
+      this.audioPanner.distanceModel = attr.distanceModel || "inverse";
+      this.audioPanner.maxDistance = attr.maxDistance || 10000;
+      this.audioPanner.coneInnerAngle = attr.coneInnerAngle || 360;
+      this.audioPanner.coneOuterAngle = attr.coneOuterAngle || 360;
+      this.audioPanner.coneOuterGain = attr.coneOuterGain || 0;
+
+      // Calculate world audio position (video position + offset)
+      const videoPos = this.config.position;
+      const offset = this.config.audioPositionOffset;
+      const audioWorldPos = {
+        x: videoPos.x + offset.x,
+        y: videoPos.y + offset.y,
+        z: videoPos.z + offset.z,
+      };
+
+      // Set panner position
+      this.audioPanner.positionX.setValueAtTime(
+        audioWorldPos.x,
+        this.audioContext.currentTime
+      );
+      this.audioPanner.positionY.setValueAtTime(
+        audioWorldPos.y,
+        this.audioContext.currentTime
+      );
+      this.audioPanner.positionZ.setValueAtTime(
+        audioWorldPos.z,
+        this.audioContext.currentTime
+      );
+
+      // Create gain node for volume control
+      this.audioGain = this.audioContext.createGain();
+      this.audioGain.gain.setValueAtTime(
+        this.config.volume,
+        this.audioContext.currentTime
+      );
+
+      // Connect: source -> panner -> gain -> destination
+      this.audioSource.connect(this.audioPanner);
+      this.audioPanner.connect(this.audioGain);
+      this.audioGain.connect(this.audioContext.destination);
+
+      // Video element must not be muted for Web Audio to work
+      this.video.muted = false;
+      // Volume is controlled by gain node, set video to max
+      this.video.volume = 1.0;
+
+      console.log(
+        `VideoPlayer: Spatial audio enabled at world position [${audioWorldPos.x}, ${audioWorldPos.y}, ${audioWorldPos.z}] (video pos + offset)`
+      );
+    } catch (error) {
+      console.error("VideoPlayer: Failed to set up spatial audio:", error);
+      // Fall back to regular audio
+      this.video.muted = this.config.muted;
+      this.video.volume = this.config.volume;
+    }
+  }
+
+  /**
+   * Update listener position for spatial audio
+   * @param {THREE.Camera} camera - Camera to use as listener
+   */
+  updateSpatialAudio(camera) {
+    if (!this.audioContext || !camera) return;
+
+    const listener = this.audioContext.listener;
+
+    // Update listener position
+    if (listener.positionX) {
+      // Modern API
+      listener.positionX.setValueAtTime(
+        camera.position.x,
+        this.audioContext.currentTime
+      );
+      listener.positionY.setValueAtTime(
+        camera.position.y,
+        this.audioContext.currentTime
+      );
+      listener.positionZ.setValueAtTime(
+        camera.position.z,
+        this.audioContext.currentTime
+      );
+    } else {
+      // Legacy API
+      listener.setPosition(
+        camera.position.x,
+        camera.position.y,
+        camera.position.z
+      );
+    }
+
+    // Update listener orientation
+    const cameraDirection = camera.getWorldDirection(new THREE.Vector3());
+
+    if (listener.forwardX) {
+      // Modern API
+      listener.forwardX.setValueAtTime(
+        cameraDirection.x,
+        this.audioContext.currentTime
+      );
+      listener.forwardY.setValueAtTime(
+        cameraDirection.y,
+        this.audioContext.currentTime
+      );
+      listener.forwardZ.setValueAtTime(
+        cameraDirection.z,
+        this.audioContext.currentTime
+      );
+      listener.upX.setValueAtTime(camera.up.x, this.audioContext.currentTime);
+      listener.upY.setValueAtTime(camera.up.y, this.audioContext.currentTime);
+      listener.upZ.setValueAtTime(camera.up.z, this.audioContext.currentTime);
+    } else {
+      // Legacy API
+      listener.setOrientation(
+        cameraDirection.x,
+        cameraDirection.y,
+        cameraDirection.z,
+        camera.up.x,
+        camera.up.y,
+        camera.up.z
+      );
+    }
+  }
+
+  /**
    * Clean up
    */
   destroy() {
     this.stop();
+
+    // Clean up Web Audio API nodes
+    if (this.audioSource) {
+      try {
+        this.audioSource.disconnect();
+      } catch (e) {
+        // Already disconnected
+      }
+      this.audioSource = null;
+    }
+
+    if (this.audioPanner) {
+      try {
+        this.audioPanner.disconnect();
+      } catch (e) {
+        // Already disconnected
+      }
+      this.audioPanner = null;
+    }
+
+    if (this.audioGain) {
+      try {
+        this.audioGain.disconnect();
+      } catch (e) {
+        // Already disconnected
+      }
+      this.audioGain = null;
+    }
+
+    // Note: Don't close audioContext as it's shared globally
 
     if (this.videoMesh) {
       if (this.videoMesh.parent) {

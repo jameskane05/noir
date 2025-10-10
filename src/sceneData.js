@@ -44,11 +44,11 @@ export const sceneObjects = {
   exterior: {
     id: "exterior",
     type: "splat",
-    path: "/exterior-test.compressed.ply",
+    path: "/exterior-test-2.compressed.ply",
     description: "Main exterior environment splat mesh",
     position: [0, -0.5, 0],
     rotation: [0, 0, 0],
-    scale: [7, 7, 7],
+    scale: [1, 1, 1],
     quaternion: [1, 0, 0, 0], // [x, y, z, w]
     loadByDefault: true, // Always load this scene
     priority: 100, // Load first
@@ -59,7 +59,7 @@ export const sceneObjects = {
     type: "gltf",
     path: "/gltf/phonebooth.glb",
     description: "Phone booth GLTF model",
-    position: [7, -2.5, 42],
+    position: [14.95, -2.5, 160.86],
     rotation: [0, Math.PI / 2, 0], // 90 degrees around Y axis
     scale: [2.5, 2.5, 2.5],
     options: {

@@ -195,9 +195,15 @@ class WebXRCameraAnimationImporter(bpy.types.Operator, ImportHelper):
             # Apply coordinate system conversion (WebXR Y-up to Blender Z-up)
             if self.coordinate_system == 'BLENDER':
                 # Convert Y-up (WebXR) to Z-up (Blender)
-                # Rotation: swap Y and Z axes
-                q_converted = Quaternion((q.w, q.x, q.z, -q.y))
+                # Position: Y and Z swap, negate new Z
                 p_converted = Vector((p.x, -p.z, p.y))
+                
+                # Rotation: Apply 90° rotation around X to convert coordinate systems
+                # In WebXR Y-up: forward=-Z, up=+Y, right=+X
+                # In Blender Z-up: forward=-Y, up=+Z, right=+X
+                # We need to rotate the quaternion to match this transform
+                basis_rotation = Quaternion((0.7071068, 0.7071068, 0, 0))  # 90° around X axis
+                q_converted = basis_rotation @ q
             else:
                 q_converted = q
                 p_converted = p

@@ -5,39 +5,43 @@ import { TransformControls } from "three/examples/jsm/controls/TransformControls
  * GizmoManager - Debug tool for positioning assets in 3D space
  *
  * Features:
- * - Auto-attaches gizmo to objects with gizmo: true
- * - Drag gizmo arrows/rings to move/rotate/scale
- * - Switch between translate/rotate/scale modes
+ * - Auto-creates gizmo for each object with gizmo: true
+ * - Multiple simultaneous gizmos supported (multi-gizmo mode)
+ * - Drag gizmo arrows/rings to move/rotate/scale any object
+ * - Switch between translate/rotate/scale modes (affects all gizmos)
  * - Log position/rotation/scale on release
- * - Works with meshes, splats, and video planes
+ * - Works with meshes, splats, video planes, and colliders
  *
  * Usage:
- * - Set gizmo: true in object data (videoData.js, sceneData.js, etc.)
- * - Gizmo appears automatically on first registered object
- * - Click other gizmo objects to switch between them
- * - G = translate, R = rotate, S = scale
- * - W = world space, L = local space
- * - Drag to manipulate, release to log position
+ * - Set gizmo: true in object data (videoData.js, sceneData.js, colliderData.js, etc.)
+ * - Gizmo appears automatically for each enabled object
+ * - Click object to focus it for logging
+ * - G = translate, R = rotate, S = scale (all gizmos)
+ * - W = world space, L = local space (all gizmos)
+ * - H = toggle visibility (all gizmos)
+ * - Drag any gizmo to manipulate, release to log position
  */
 class GizmoManager {
-  constructor(scene, camera, renderer, options = {}) {
+  constructor(scene, camera, renderer, sceneManager = null) {
     this.scene = scene;
     this.camera = camera;
     this.renderer = renderer;
     this.enabled = false;
 
-    // Configurable objects
+    // Configurable objects - now supports multiple simultaneous gizmos
     this.objects = []; // Objects that can be selected
-    this.control = null;
-    this.controlHelper = null; // Object3D returned by TransformControls.getHelper()
+    this.controls = new Map(); // Map of object -> TransformControls
+    this.controlHelpers = new Map(); // Map of object -> helper Object3D
     this.isGizmoDragging = false;
     this.isGizmoHovering = false;
     this.isVisible = true;
     this.hasGizmoInDefinitions = false; // from data definitions (even if not instantiated)
+    this.currentMode = "translate"; // Current gizmo mode (applies to all)
+    this.currentSpace = "world"; // Current space (applies to all)
     // Integration targets for standardized global effects
     this.idleHelper = null;
     this.inputManager = null;
-    this.selectedObject = null;
+    this.activeObject = null; // Most recently interacted object
 
     // Raycaster for object picking
     this.raycaster = new THREE.Raycaster();
@@ -45,6 +49,11 @@ class GizmoManager {
 
     // Always enable (will only affect objects with gizmo: true)
     this.enable();
+
+    // Register any already-loaded scene objects if sceneManager provided
+    if (sceneManager) {
+      this.registerSceneObjects(sceneManager);
+    }
   }
 
   /**
@@ -195,23 +204,10 @@ class GizmoManager {
     if (this.enabled) return;
     this.enabled = true;
 
-    // Create TransformControls
-    this.control = new TransformControls(this.camera, this.renderer.domElement);
-    this.control.setMode("translate");
-    this.control.setSpace("world");
-    // Add the visual helper Object3D (recommended in docs)
-    if (typeof this.control.getHelper === "function") {
-      this.controlHelper = this.control.getHelper();
-      if (this.controlHelper) {
-        this.scene.add(this.controlHelper);
-        console.log("GizmoManager: Added TransformControls helper to scene");
-        // Start hidden until we actually select/attach
-        this.controlHelper.visible = false;
-      }
-    }
-
-    // Setup event listeners
+    // Setup event listeners (controls created per-object in registerObject)
     this.setupEventListeners();
+
+    console.log("GizmoManager: Enabled (multi-gizmo mode)");
   }
 
   /**
@@ -221,24 +217,28 @@ class GizmoManager {
     if (!this.enabled) return;
     this.enabled = false;
 
-    if (this.control) {
-      this.control.dispose();
-      this.control = null;
-    }
-
-    if (this.controlHelper) {
-      if (this.controlHelper.parent) {
-        this.controlHelper.parent.remove(this.controlHelper);
+    // Dispose all controls
+    for (const control of this.controls.values()) {
+      if (control) {
+        control.dispose();
       }
-      this.controlHelper = null;
     }
+    this.controls.clear();
+
+    // Remove all helpers
+    for (const helper of this.controlHelpers.values()) {
+      if (helper && helper.parent) {
+        helper.parent.remove(helper);
+      }
+    }
+    this.controlHelpers.clear();
 
     this.removeEventListeners();
   }
 
   /**
    * Register an object that can be selected and manipulated
-   * Auto-attaches gizmo immediately (no click required)
+   * Creates and shows a gizmo immediately (multi-gizmo mode)
    * @param {THREE.Object3D} object - The object to register
    * @param {string} id - Optional identifier for logging
    * @param {string} type - Optional type (mesh, splat, video)
@@ -257,33 +257,73 @@ class GizmoManager {
 
     this.objects.push(item);
 
-    console.log(`GizmoManager: Registered "${id}" (${type})`, object);
-    console.log(`  Total registered objects: ${this.objects.length}`);
+    // Create a TransformControls for this object
+    const control = new TransformControls(
+      this.camera,
+      this.renderer.domElement
+    );
+    control.setMode(this.currentMode);
+    control.setSpace(this.currentSpace);
+    control.attach(object);
 
-    // Auto-select the first object (or if only one object, attach to it)
-    if (this.objects.length === 1) {
-      this.selectObject(item);
-      console.log(`GizmoManager: Auto-attached gizmo to "${id}"`);
+    // Add the visual helper Object3D
+    if (typeof control.getHelper === "function") {
+      const helper = control.getHelper();
+      if (helper) {
+        this.scene.add(helper);
+        helper.visible = this.isVisible;
+        this.controlHelpers.set(object, helper);
+      }
     }
+
+    // Setup event listeners for this control
+    control.addEventListener("dragging-changed", (event) => {
+      if (event.value) {
+        this.isGizmoDragging = true;
+        this.activeObject = item;
+        console.log(`GizmoManager: Dragging "${item.id}"`);
+      } else {
+        this.isGizmoDragging = false;
+        console.log(`GizmoManager: Drag ended "${item.id}"`);
+        this.logObjectTransform(item);
+      }
+    });
+
+    control.addEventListener("hoveron", () => {
+      this.isGizmoHovering = true;
+    });
+
+    control.addEventListener("hoveroff", () => {
+      this.isGizmoHovering = false;
+    });
+
+    this.controls.set(object, control);
+
+    console.log(
+      `GizmoManager: Registered "${item.id}" (${type}) with gizmo`,
+      object
+    );
+    console.log(`  Total registered objects: ${this.objects.length}`);
 
     // Standardize side-effects when any gizmo is present
     this.updateGlobalBlocks();
   }
 
   /**
-   * Select an already-registered object by id and attach the gizmo
+   * Select an already-registered object by id (sets it as active for logging)
    * @param {string} id
    */
   selectObjectById(id) {
     if (!id) return;
     const item = this.objects.find((it) => it.id === id);
     if (item) {
-      this.selectObject(item);
+      this.activeObject = item;
+      console.log(`GizmoManager: Set active object to "${id}"`);
     }
   }
 
   /**
-   * Unregister an object
+   * Unregister an object and remove its gizmo
    * @param {THREE.Object3D} object - The object to unregister
    */
   unregisterObject(object) {
@@ -291,6 +331,21 @@ class GizmoManager {
     if (index !== -1) {
       this.objects.splice(index, 1);
     }
+
+    // Dispose the control
+    const control = this.controls.get(object);
+    if (control) {
+      control.dispose();
+      this.controls.delete(object);
+    }
+
+    // Remove the helper
+    const helper = this.controlHelpers.get(object);
+    if (helper && helper.parent) {
+      helper.parent.remove(helper);
+    }
+    this.controlHelpers.delete(object);
+
     // Update global effects when gizmo set changes
     this.updateGlobalBlocks();
   }
@@ -299,7 +354,7 @@ class GizmoManager {
    * Setup event listeners for gizmo interaction
    */
   setupEventListeners() {
-    // Mouse click for object selection
+    // Mouse click for object selection/focusing
     this.onMouseDown = this.handleMouseDown.bind(this);
     this.renderer.domElement.addEventListener("mousedown", this.onMouseDown);
 
@@ -311,28 +366,7 @@ class GizmoManager {
     this.onKeyDown = this.handleKeyDown.bind(this);
     window.addEventListener("keydown", this.onKeyDown);
 
-    // Track gizmo drag/hover state
-    this.control.addEventListener("dragging-changed", (event) => {
-      // Emit event for other systems to pause (e.g., character controller)
-      if (event.value) {
-        this.isGizmoDragging = true;
-        console.log("GizmoManager: Dragging started");
-      } else {
-        this.isGizmoDragging = false;
-        console.log("GizmoManager: Dragging ended");
-        this.logObjectTransform();
-      }
-    });
-
-    // Hover state over gizmo handles
-    if (typeof this.control.addEventListener === "function") {
-      this.control.addEventListener("hoveron", () => {
-        this.isGizmoHovering = true;
-      });
-      this.control.addEventListener("hoveroff", () => {
-        this.isGizmoHovering = false;
-      });
-    }
+    // Note: drag/hover events are set per-control in registerObject()
   }
 
   /**
@@ -361,11 +395,14 @@ class GizmoManager {
   }
 
   /**
-   * Handle mouse down for object selection
+   * Handle mouse down for object focusing (sets active for keyboard shortcuts)
    */
   handleMouseDown(event) {
-    // Ignore if dragging gizmo
-    if (this.control && this.control.dragging) return;
+    // Ignore if any gizmo is being dragged
+    const anyDragging = Array.from(this.controls.values()).some(
+      (ctrl) => ctrl.dragging
+    );
+    if (anyDragging) return;
 
     // Calculate mouse position in normalized device coordinates
     const rect = this.renderer.domElement.getBoundingClientRect();
@@ -381,20 +418,23 @@ class GizmoManager {
 
     if (intersects.length > 0) {
       // Find the top-level registered object
-      let selectedObj = null;
+      let focusedObj = null;
       for (const item of this.objects) {
         if (
           intersects[0].object === item.object ||
           intersects[0].object.parent === item.object ||
           item.object.children.includes(intersects[0].object)
         ) {
-          selectedObj = item;
+          focusedObj = item;
           break;
         }
       }
 
-      if (selectedObj) {
-        this.selectObject(selectedObj);
+      if (focusedObj) {
+        this.activeObject = focusedObj;
+        console.log(
+          `GizmoManager: Focused "${focusedObj.id}" (${focusedObj.type})`
+        );
       }
     }
   }
@@ -403,17 +443,14 @@ class GizmoManager {
    * Handle mouse up
    */
   handleMouseUp(event) {
-    // Log position when releasing after drag
-    if (this.selectedObject && this.control && !this.control.dragging) {
-      // Position was already logged in dragging-changed event
-    }
+    // Position logging is handled in per-control dragging-changed events
   }
 
   /**
-   * Handle keyboard shortcuts
+   * Handle keyboard shortcuts (applies to all gizmos)
    */
   handleKeyDown(event) {
-    if (!this.enabled || !this.control) return;
+    if (!this.enabled || this.controls.size === 0) return;
 
     // Ignore if typing in an input
     if (
@@ -425,87 +462,112 @@ class GizmoManager {
 
     switch (event.key.toLowerCase()) {
       case "g":
-        this.control.setMode("translate");
-        console.log("GizmoManager: Mode = Translate");
+        this.currentMode = "translate";
+        for (const control of this.controls.values()) {
+          control.setMode("translate");
+        }
+        console.log("GizmoManager: Mode = Translate (all gizmos)");
         break;
       case "r":
-        this.control.setMode("rotate");
-        console.log("GizmoManager: Mode = Rotate");
+        this.currentMode = "rotate";
+        for (const control of this.controls.values()) {
+          control.setMode("rotate");
+        }
+        console.log("GizmoManager: Mode = Rotate (all gizmos)");
         break;
       case "s":
-        this.control.setMode("scale");
-        console.log("GizmoManager: Mode = Scale");
+        this.currentMode = "scale";
+        for (const control of this.controls.values()) {
+          control.setMode("scale");
+        }
+        console.log("GizmoManager: Mode = Scale (all gizmos)");
         break;
       case "w":
-        this.control.setSpace("world");
-        console.log("GizmoManager: Space = World");
+        this.currentSpace = "world";
+        for (const control of this.controls.values()) {
+          control.setSpace("world");
+        }
+        console.log("GizmoManager: Space = World (all gizmos)");
         break;
       case "l":
-        this.control.setSpace("local");
-        console.log("GizmoManager: Space = Local");
+        this.currentSpace = "local";
+        for (const control of this.controls.values()) {
+          control.setSpace("local");
+        }
+        console.log("GizmoManager: Space = Local (all gizmos)");
         break;
       case "h":
         this.setVisible(!this.isVisible);
-        console.log(`GizmoManager: ${this.isVisible ? "Shown" : "Hidden"}`);
+        console.log(
+          `GizmoManager: ${this.isVisible ? "Shown" : "Hidden"} (all gizmos)`
+        );
         break;
       case "escape":
-        this.deselectObject();
+        if (this.activeObject) {
+          console.log(
+            `GizmoManager: Cleared focus from "${this.activeObject.id}"`
+          );
+          this.activeObject = null;
+        }
         break;
     }
   }
 
   /**
-   * Show/hide gizmo visuals and interaction
+   * Show/hide all gizmo visuals and interaction
    */
   setVisible(visible) {
     this.isVisible = !!visible;
-    if (this.controlHelper) {
-      // Only show helper when we have a selected object
-      this.controlHelper.visible = this.isVisible && !!this.selectedObject;
+
+    // Update all helpers
+    for (const helper of this.controlHelpers.values()) {
+      if (helper) {
+        helper.visible = this.isVisible;
+      }
     }
-    if (this.control) {
-      this.control.enabled = this.isVisible;
+
+    // Update all controls
+    for (const control of this.controls.values()) {
+      if (control) {
+        control.enabled = this.isVisible;
+      }
     }
   }
 
   /**
-   * Select an object
+   * Select an object (sets it as active for logging/interaction)
+   * In multi-gizmo mode, all gizmos are always visible
    */
   selectObject(item) {
-    this.selectedObject = item;
-    this.control.attach(item.object);
-    if (this.controlHelper) this.controlHelper.visible = this.isVisible;
-
+    this.activeObject = item;
     console.log(`GizmoManager: Selected "${item.id}" (${item.type})`);
-    this.logObjectTransform();
+    this.logObjectTransform(item);
   }
 
   /**
-   * Deselect current object
+   * Deselect current object (clears active focus)
    */
   deselectObject() {
-    if (this.selectedObject) {
-      console.log(`GizmoManager: Deselected "${this.selectedObject.id}"`);
-      this.selectedObject = null;
+    if (this.activeObject) {
+      console.log(`GizmoManager: Deselected "${this.activeObject.id}"`);
+      this.activeObject = null;
     }
-    this.control.detach();
-    if (this.controlHelper) this.controlHelper.visible = false;
   }
 
   /**
-   * Log the current object's transform
+   * Log an object's transform
+   * @param {Object} item - Optional item to log (defaults to activeObject)
    */
-  logObjectTransform() {
-    if (!this.selectedObject) return;
+  logObjectTransform(item = null) {
+    const target = item || this.activeObject;
+    if (!target) return;
 
-    const obj = this.selectedObject.object;
+    const obj = target.object;
     const pos = obj.position;
     const rot = obj.rotation;
     const scale = obj.scale;
 
-    console.log(
-      `\n=== ${this.selectedObject.id} (${this.selectedObject.type}) ===`
-    );
+    console.log(`\n=== ${target.id} (${target.type}) ===`);
     console.log(
       `position: [${pos.x.toFixed(2)}, ${pos.y.toFixed(2)}, ${pos.z.toFixed(
         2

@@ -13,9 +13,9 @@ class PhysicsManager {
     const floorDesc = RAPIER.RigidBodyDesc.fixed().setTranslation(0, 0, 0);
     const floor = this.world.createRigidBody(floorDesc);
     const floorColliderDesc = RAPIER.ColliderDesc.cuboid(
-      200,
+      1000,
       0.1,
-      200
+      1000
     ).setFriction(1.0);
     this.world.createCollider(floorColliderDesc, floor);
     return floor;

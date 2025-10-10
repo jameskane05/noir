@@ -53,9 +53,8 @@ export class IdleHelper {
     this.helperElement = document.createElement("div");
     this.helperElement.id = "idle-helper";
     this.helperElement.style.position = "fixed";
-    this.helperElement.style.bottom = "60px";
-    this.helperElement.style.left = "50%";
-    this.helperElement.style.transform = "translateX(-50%)";
+    this.helperElement.style.bottom = "5%";
+    this.helperElement.style.right = "5%";
     this.helperElement.style.opacity = "0";
     this.helperElement.style.pointerEvents = "none";
     this.helperElement.style.zIndex = "1000";

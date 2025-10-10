@@ -73,7 +73,7 @@ export const colliders = [
   {
     id: "trigger-phonebooth-ring",
     type: "box",
-    position: { x: 8, y: 0, z: 20 }, // 5m away from phonebooth (phonebooth at z:10)
+    position: { x: 14.39, y: 0.82, z: 143.46 }, // 5m away from phonebooth (phonebooth at z:10)
     rotation: { x: 0, y: 120, z: 0 },
     dimensions: { x: 6, y: 1.5, z: 1.5 }, // 3x3x3 box
     onEnter: [
@@ -91,6 +91,7 @@ export const colliders = [
         $lt: GAME_STATES.PHONE_BOOTH_RINGING,
       },
     },
+    gizmo: true,
   },
 
   // Phonebooth interaction - only available after hearing the phone ring
@@ -116,7 +117,7 @@ export const colliders = [
   {
     id: "cat",
     type: "box",
-    position: { x: -19.7, y: 0.4, z: -125.7 },
+    position: { x: -0.5, y: 0.4, z: 42.5 },
     rotation: { x: 0, y: 0, z: 0 },
     dimensions: { x: 2.5, y: 1.0, z: 2.5 }, // 5x2x5 meter box (half-extents)
     onEnter: [

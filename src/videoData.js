@@ -4,10 +4,15 @@
  * Each video contains:
  * - id: Unique identifier for the video
  * - videoPath: Path to the video file (WebM with alpha channel)
- * - position: [x, y, z] position in 3D space
- * - rotation: [x, y, z] rotation in radians
- * - scale: [x, y, z] scale multipliers
+ * - position: {x, y, z} position in 3D space
+ * - rotation: {x, y, z} rotation in radians
+ * - scale: {x, y, z} scale multipliers
  * - loop: Whether the video should loop
+ * - muted: Whether the video should be muted (default: true)
+ * - volume: Volume level 0.0-1.0 (default: 1.0)
+ * - spatialAudio: Enable 3D spatial audio (default: false)
+ * - audioPositionOffset: {x, y, z} offset from video position for audio source (default: {x:0, y:0, z:0})
+ * - pannerAttr: Web Audio API PannerNode attributes (default: HRTF, inverse distance)
  * - billboard: Whether the video should always face the camera
  * - criteria: Optional object with key-value pairs that must match game state for video to play
  *   - Simple equality: { currentState: GAME_STATES.INTRO }
@@ -42,9 +47,9 @@ export const videos = {
   [VIDEO_IDS.DRIVE_BY]: {
     id: VIDEO_IDS.DRIVE_BY,
     videoPath: "/video/1007-bw-2.webm",
-    position: [-27.82, 1, 53.86],
-    rotation: [0, -Math.PI / 2, 0],
-    scale: [3, 3, 3],
+    position: { x: -27.82, y: 1, z: 53.86 },
+    rotation: { x: 0, y: -Math.PI / 2, z: 0 },
+    scale: { x: 3, y: 3, z: 3 },
     loop: true,
     muted: true,
     billboard: true,
@@ -58,9 +63,9 @@ export const videos = {
   [VIDEO_IDS.CAT]: {
     id: VIDEO_IDS.CAT,
     videoPath: "/video/cat.webm",
-    position: [-102.44, -6.4, -118.24], // 3 meters in front of drive-by video
-    rotation: [0, -Math.PI / 2, 0],
-    scale: [2, 2, 2],
+    position: { x: -102.44, y: -6.4, z: -118.24 },
+    rotation: { x: 0, y: -Math.PI / 2, z: 0 },
+    scale: { x: 2, y: 2, z: 2 },
     loop: false,
     muted: true,
     billboard: true,
