@@ -47,6 +47,9 @@ class CameraAnimationManager {
     // Delayed playback support
     this.pendingAnimations = new Map(); // Map of animId -> { animData, timer, delay }
 
+    // Delayed input restoration (for lookat animations with zoom)
+    this.pendingInputRestore = null; // { timer: 0, delay: number } or null
+
     // Post-animation settle-up to ensure clearance above floor
     this.isSettlingUp = false;
     this.settleStartY = 0;
@@ -274,15 +277,65 @@ class CameraAnimationManager {
       this.playedAnimations.add(lookAtData.id);
     }
 
+    // Support both new (transitionTime) and old (duration) property names for backwards compatibility
+    const transitionTime =
+      lookAtData.transitionTime || lookAtData.duration || 2.0;
+    const returnTransitionTime =
+      lookAtData.returnTransitionTime ||
+      lookAtData.returnDuration ||
+      transitionTime;
+
+    // Determine if we need to delay input restoration after zoom completes
+    // This happens when: zoom is enabled, returnToOriginalView is false
+    const needsDelayedRestore =
+      lookAtData.enableZoom &&
+      !lookAtData.returnToOriginalView &&
+      lookAtData.zoomOptions;
+
+    let onComplete = null;
+
+    if (needsDelayedRestore) {
+      const zoomOpts = lookAtData.zoomOptions;
+      const holdDuration = zoomOpts.holdDuration || 0;
+      const zoomTransitionDuration = zoomOpts.transitionDuration || 0;
+      const delayAfterLookat = holdDuration + zoomTransitionDuration;
+
+      console.log(
+        `CameraAnimationManager: Lookat '${lookAtData.id}' has zoom without return. ` +
+          `Will restore control ${delayAfterLookat.toFixed(
+            2
+          )}s after lookat completes ` +
+          `(hold: ${holdDuration}s + zoom-out: ${zoomTransitionDuration}s)`
+      );
+
+      // Provide onComplete that schedules delayed restoration
+      onComplete = () => {
+        this.pendingInputRestore = {
+          timer: 0,
+          delay: delayAfterLookat,
+        };
+      };
+    } else {
+      // Immediate restoration when lookat completes
+      onComplete = () => {
+        if (this.characterController) {
+          this.characterController.enableInput();
+          console.log(
+            `CameraAnimationManager: Lookat '${lookAtData.id}' complete, input restored`
+          );
+        }
+      };
+    }
+
     // Emit lookat event through gameManager
     // Note: This doesn't block isPlaying - lookats can happen during JSON animations
     if (this.gameManager) {
       this.gameManager.emit("camera:lookat", {
         position: lookAtData.position,
-        duration: lookAtData.duration || 2.0,
-        restoreControl: lookAtData.restoreControl !== false,
+        duration: transitionTime,
+        onComplete: onComplete,
         returnToOriginalView: lookAtData.returnToOriginalView || false,
-        returnDuration: lookAtData.returnDuration || lookAtData.duration || 2.0,
+        returnDuration: returnTransitionTime,
         enableZoom: lookAtData.enableZoom || false,
         zoomOptions: lookAtData.zoomOptions || {},
         colliderId: `camera-data-${lookAtData.id}`,
@@ -306,13 +359,17 @@ class CameraAnimationManager {
       this.playedAnimations.add(moveToData.id);
     }
 
+    // Support both new (transitionTime) and old (duration) property names for backwards compatibility
+    const transitionTime =
+      moveToData.transitionTime || moveToData.duration || 2.0;
+
     // Emit moveTo event through gameManager
     // Note: This doesn't block isPlaying - moveTos can happen during JSON animations
     if (this.gameManager) {
       this.gameManager.emit("character:moveto", {
         position: moveToData.position,
         rotation: moveToData.rotation || null,
-        duration: moveToData.duration || 2.0,
+        duration: transitionTime, // Still use 'duration' for the event for compatibility with characterController
         inputControl: moveToData.inputControl || {
           disableMovement: true,
           disableRotation: true,
@@ -520,6 +577,24 @@ class CameraAnimationManager {
           this.playFromData(pending.animData);
           break; // Only play one animation per frame
         }
+      }
+    }
+
+    // Update pending input restoration (for lookat animations with zoom)
+    if (this.pendingInputRestore) {
+      this.pendingInputRestore.timer += dt;
+
+      if (this.pendingInputRestore.timer >= this.pendingInputRestore.delay) {
+        // Restore input after delay
+        if (this.characterController) {
+          this.characterController.enableInput();
+          console.log(
+            `CameraAnimationManager: Restored control after zoom completion (${this.pendingInputRestore.delay.toFixed(
+              2
+            )}s delay)`
+          );
+        }
+        this.pendingInputRestore = null;
       }
     }
 

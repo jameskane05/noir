@@ -124,7 +124,11 @@ const sfxManager = new SFXManager({
 });
 
 // Initialize input manager (handles keyboard, mouse, and gamepad)
-const inputManager = new InputManager(renderer.domElement);
+// Note: Pass gameManager so inputManager can check game state before allowing pointer lock
+const inputManager = new InputManager(renderer.domElement, gameManager);
+
+// Disable input initially - will be enabled when game starts
+inputManager.disable();
 
 // Initialize character controller (will be disabled until intro completes)
 const characterController = new CharacterController(
@@ -193,7 +197,11 @@ if (gameManager.state.currentState === GAME_STATES.START_SCREEN) {
   );
 
   startScreen = new StartScreen(camera, scene, {
-    circleCenter: new THREE.Vector3(12, 0, 5), // Center point of the circular path
+    circleCenter: new THREE.Vector3(
+      sceneObjects.phonebooth.position.x,
+      10,
+      sceneObjects.phonebooth.position.z
+    ), // Center point of the circular path
     circleRadius: 12,
     circleHeight: 8,
     circleSpeed: 0.05,
@@ -269,12 +277,14 @@ uiManager.initializeComponents({
   characterController,
 });
 
-// Listen for character controller enable/disable to show/hide touch controls
+// Listen for character controller enable/disable to show/hide touch controls and enable/disable input
 gameManager.on("character-controller:enabled", () => {
+  inputManager.enable(); // Enable input when character controller is enabled
   inputManager.showTouchControls();
 });
 
 gameManager.on("character-controller:disabled", () => {
+  inputManager.disable(); // Disable input when character controller is disabled
   inputManager.hideTouchControls();
 });
 
@@ -299,6 +309,9 @@ sceneManager.gizmoManager = gizmoManager;
 if (gameManager.videoManager) {
   gameManager.videoManager.gizmoManager = gizmoManager;
 }
+
+// Register any already-loaded scene objects with gizmo manager
+gizmoManager.registerSceneObjects(sceneManager);
 
 // Make gizmo manager globally accessible for debugging
 window.gizmoManager = gizmoManager;

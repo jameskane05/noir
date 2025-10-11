@@ -1,4 +1,5 @@
 import { TouchJoystick } from "./touchJoystick.js";
+import { GAME_STATES } from "./gameData.js";
 
 /**
  * InputManager - Unified input handling for keyboard, mouse, gamepad, and touch
@@ -14,8 +15,9 @@ import { TouchJoystick } from "./touchJoystick.js";
  */
 
 class InputManager {
-  constructor(rendererDomElement) {
+  constructor(rendererDomElement, gameManager = null) {
     this.rendererDomElement = rendererDomElement;
+    this.gameManager = gameManager;
 
     // Input state
     this.keys = { w: false, a: false, s: false, d: false, shift: false };
@@ -122,6 +124,15 @@ class InputManager {
     this.rendererDomElement.addEventListener("click", () => {
       if (!this.enabled) return;
       if (this.pointerLockBlocked) return;
+
+      // Only allow pointer lock after game has started (past start screen and title sequence)
+      if (this.gameManager && this.gameManager.state) {
+        const currentState = this.gameManager.state.currentState;
+        if (currentState < GAME_STATES.TITLE_SEQUENCE) {
+          return; // Don't request pointer lock during start screen
+        }
+      }
+
       this.rendererDomElement.requestPointerLock();
     });
 
@@ -132,8 +143,11 @@ class InputManager {
 
       if (isLocked) {
         // Pointer lock mode: use movement deltas
-        this.mouseDelta.x += event.movementX;
-        this.mouseDelta.y += event.movementY;
+        // But only if rotation is actually enabled (prevents accumulation during title sequence)
+        if (this.rotationEnabled) {
+          this.mouseDelta.x += event.movementX;
+          this.mouseDelta.y += event.movementY;
+        }
         return;
       }
 
@@ -388,6 +402,8 @@ class InputManager {
     this.enabled = true;
     this.movementEnabled = true;
     this.rotationEnabled = true;
+    // Clear any accumulated input when enabling
+    this.mouseDelta = { x: 0, y: 0 };
     this.showTouchControls();
     console.log("InputManager: Input enabled");
   }
@@ -439,6 +455,8 @@ class InputManager {
    */
   enableRotation() {
     this.rotationEnabled = true;
+    // Clear any accumulated mouse input when enabling rotation
+    this.mouseDelta = { x: 0, y: 0 };
     // Show right joystick only if on touch device
     if (this.rightJoystick) {
       this.rightJoystick.show();

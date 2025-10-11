@@ -219,6 +219,46 @@ export const sfxSounds = {
     spatial: false,
     preload: true,
   },
+
+  // Radio audio (3D spatial audio with reactive light)
+  radio: {
+    id: "radio",
+    src: ["/audio/music/rach 3 - mv 2 - 1-00.mp3"], // Radio playing classical music
+    volume: 0.4,
+    loop: true,
+    spatial: true,
+    position: {
+      x: sceneObjects.radio.position.x,
+      y: sceneObjects.radio.position.y + 0.5, // Slightly above the radio
+      z: sceneObjects.radio.position.z,
+    },
+    pannerAttr: {
+      panningModel: "HRTF",
+      refDistance: 5,
+      rolloffFactor: 1.5,
+      distanceModel: "inverse",
+      maxDistance: 50,
+    },
+    preload: true,
+    criteria: {
+      currentState: { $gte: GAME_STATES.START_SCREEN },
+    },
+    // Audio-reactive light configuration
+    reactiveLight: {
+      enabled: true,
+      type: "PointLight",
+      color: 0xffa500, // Warm orange glow for vintage radio
+      position: { x: 0, y: 1.2, z: 0 }, // Offset from sound position (above radio)
+      baseIntensity: 5.0, // Subtle ambient glow when quiet
+      reactivityMultiplier: 30.0, // React to music dynamics
+      distance: 15,
+      decay: 2,
+      smoothing: 0.7, // Smooth transitions for music
+      frequencyRange: "mid", // React to mid-range frequencies (vocals/melody)
+      maxIntensity: 100.0,
+      noiseFloor: 0.1, // Ignore quiet audio to prevent flicker
+    },
+  },
 };
 
 /**

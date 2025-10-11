@@ -162,18 +162,10 @@ class CharacterController {
         data.position.y,
         data.position.z
       );
-      const onComplete = data.restoreControl
-        ? () => {
-            this.inputDisabled = false;
-            console.log(`Camera look-at complete (${data.colliderId})`);
-          }
-        : null;
-
+      const onComplete = data.onComplete || null;
       const enableZoom =
         data.enableZoom !== undefined ? data.enableZoom : false;
       const zoomOptions = data.zoomOptions || {};
-      // If restoreControl is false, don't disable input (let moveTo or other system manage it)
-      const disableInput = data.restoreControl !== false;
       const returnToOriginalView = data.returnToOriginalView || false;
       const returnDuration = data.returnDuration || data.duration;
 
@@ -183,7 +175,7 @@ class CharacterController {
         onComplete,
         enableZoom,
         zoomOptions,
-        disableInput,
+        true, // Always disable input during lookat
         returnToOriginalView,
         returnDuration
       );
@@ -1109,11 +1101,6 @@ class CharacterController {
           this.lookAtHolding = false;
           this.returnTransitionDuration = null; // Clear return transition override
 
-          // Re-enable input manager only if we disabled it
-          if (this.lookAtDisabledInput) {
-            this.inputManager.enable();
-          }
-
           // Reset glance state
           this.glanceState = null;
           this.glanceTimer = 0;
@@ -1135,7 +1122,7 @@ class CharacterController {
             );
           }
 
-          // Call completion callback if provided
+          // Call completion callback if provided (should handle input restoration)
           if (this.lookAtOnComplete) {
             this.lookAtOnComplete();
             this.lookAtOnComplete = null;

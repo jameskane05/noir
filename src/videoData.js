@@ -66,7 +66,6 @@ export const videos = {
       heardCat: true,
     },
     autoPlay: true,
-    delay: 0.5,
     once: true,
     priority: 0,
   },

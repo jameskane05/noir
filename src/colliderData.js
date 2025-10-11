@@ -36,9 +36,10 @@
  * - "state": Set game state
  *   - data: { key: "state-key", value: any }
  * - "camera-lookat": Trigger camera look-at (DEPRECATED - use cameraAnimationData.js instead)
- *   - data: { position: {x, y, z}, duration: 2.0, restoreControl: true, enableZoom: false }
- *   - OR with targetMesh: { targetMesh: {objectId: "object-id", childName: "MeshName"}, duration: 2.0, restoreControl: true, enableZoom: true }
+ *   - data: { position: {x, y, z}, duration: 2.0, enableZoom: false }
+ *   - OR with targetMesh: { targetMesh: {objectId: "object-id", childName: "MeshName"}, duration: 2.0, enableZoom: true }
  *   - Optional zoomOptions: { zoomFactor: 1.5, minAperture: 0.15, maxAperture: 0.35, transitionStart: 0.8, transitionDuration: 2.0, holdDuration: 2.0 }
+ *   - Input is always disabled during lookat and restored when complete (or after zoom if enabled without returnToOriginalView)
  * - "camera-animation": Play a camera animation
  *   - data: { animation: "path/to/animation.json", onComplete: optional-callback }
  * - "custom": Emit custom event for game-specific logic

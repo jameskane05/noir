@@ -293,7 +293,6 @@ class ColliderManager {
       position,
       targetMesh,
       duration = 2.0,
-      restoreControl = true,
       returnToOriginalView = false,
       returnDuration = null,
       enableZoom = false,
@@ -349,7 +348,6 @@ class ColliderManager {
     this.gameManager.emit("camera:lookat", {
       position: targetPosition,
       duration,
-      restoreControl,
       returnToOriginalView,
       returnDuration: returnDuration || duration,
       enableZoom,
@@ -376,20 +374,13 @@ class ColliderManager {
    * Handle move-to event (move character to position)
    */
   handleMoveToEvent(data, colliderId) {
-    const {
-      position,
-      rotation,
-      duration = 2.0,
-      restoreControl = true,
-      inputControl,
-    } = data;
+    const { position, rotation, duration = 2.0, inputControl } = data;
 
     // Emit event for character controller to handle
     this.gameManager.emit("character:moveto", {
       position,
       rotation,
       duration,
-      restoreControl,
       inputControl, // Pass through input control settings
       colliderId,
     });

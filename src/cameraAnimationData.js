@@ -24,25 +24,28 @@
  *
  * For type "lookat":
  * - position: {x, y, z} world position to look at
- * - duration: Duration of the initial look-at transition in seconds (default: 2.0)
+ * - transitionTime: Time for the initial look-at transition in seconds (default: 2.0)
  * - returnToOriginalView: If true, return to original view before restoring control (default: false)
- * - returnDuration: Duration of the return transition in seconds (default: same as duration)
- *   Note: Only used if returnToOriginalView is true. Can be different from initial duration.
- * - restoreControl: If true, restore input controls when complete (default: true)
+ * - returnTransitionTime: Time for the return transition in seconds (default: same as transitionTime)
+ *   Note: Only used if returnToOriginalView is true. Can be different from initial transition.
  * - enableZoom: If true, enable zoom/DoF effect (default: false)
  * - zoomOptions: Optional zoom configuration
  *   - zoomFactor: Camera zoom multiplier (e.g., 2.0 for 2x zoom)
  *   - minAperture: DoF effect strength at peak
  *   - maxAperture: DoF effect strength at rest
- *   - transitionStart: When to start zoom (0-1, fraction of duration)
- *   - transitionDuration: How long zoom transition takes in seconds
+ *   - transitionStart: When to start zoom (0-1, fraction of transitionTime)
+ *   - transitionDuration: How long zoom IN and OUT transitions take in seconds
  *   - holdDuration: How long to hold at target. If returnToOriginalView=true, holds before return
- *                   (DoF/zoom reset DURING the return animation). Otherwise, holds after lookat completes.
+ *                   (DoF/zoom reset DURING the return animation). If returnToOriginalView=false, holds
+ *                   after lookat completes, then zoom/DoF transitions back over transitionDuration.
+ *
+ * Input control: Always disabled during lookat. Restored when complete, or if zoom is enabled without
+ *                returnToOriginalView, restored after holdDuration + transitionDuration.
  *
  * For type "moveTo":
  * - position: {x, y, z} world position to move character to
  * - rotation: {yaw, pitch} target rotation in radians (optional)
- * - duration: Duration of the movement in seconds (default: 2.0)
+ * - transitionTime: Time for the movement transition in seconds (default: 2.0)
  * - inputControl: What input to disable during movement
  *   - disableMovement: Disable movement input (default: true)
  *   - disableRotation: Disable rotation input (default: true)
@@ -67,8 +70,7 @@ export const cameraAnimations = {
       y: 0.9,
       z: sceneObjects.phonebooth.position.z,
     },
-    duration: 1.5,
-    restoreControl: true,
+    transitionTime: 1,
     enableZoom: true, // Enable dramatic zoom/DoF when looking at phone booth
     zoomOptions: {
       zoomFactor: 2.0, // More dramatic 2x zoom
@@ -81,7 +83,7 @@ export const cameraAnimations = {
     criteria: { currentState: GAME_STATES.PHONE_BOOTH_RINGING },
     priority: 100,
     playOnce: true,
-    delay: 0.5, // Wait 0.5 seconds before looking at phone booth
+    delay: 0.25, // Wait 0.5 seconds before looking at phone booth
   },
 
   phoneBoothMoveTo: {
@@ -97,7 +99,7 @@ export const cameraAnimations = {
       yaw: Math.PI / 2, // Face the phone (90 degrees)
       pitch: 0,
     },
-    duration: 1.5,
+    transitionTime: 1.5,
     inputControl: {
       disableMovement: true, // Disable movement
       disableRotation: false, // Allow rotation (player can look around)
@@ -113,10 +115,9 @@ export const cameraAnimations = {
     type: "lookat",
     description: "Look at cat video when player hears cat sound",
     position: videos.cat.position,
-    duration: 1.25, // Initial transition to look at cat
-    returnDuration: 0.8, // Faster return to original view
+    transitionTime: 0.75,
     returnToOriginalView: true,
-    restoreControl: true,
+    returnTransitionTime: 1.25,
     enableZoom: true,
     zoomOptions: {
       zoomFactor: 1.8,
@@ -127,8 +128,8 @@ export const cameraAnimations = {
       holdDuration: 3.25,
     },
     criteria: { heardCat: true },
-    priority: 100,
     playOnce: true,
+    priority: 100,
   },
 
   lookAndJump: {

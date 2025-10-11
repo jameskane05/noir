@@ -32,7 +32,7 @@ export class StartScreen {
     this.targetPosition =
       options.targetPosition || new THREE.Vector3(10, 1.6, 15);
     this.targetRotation = options.targetRotation || {
-      yaw: THREE.MathUtils.degToRad(-300),
+      yaw: THREE.MathUtils.degToRad(-210),
       pitch: 0,
     };
 
@@ -121,8 +121,15 @@ export class StartScreen {
     });
 
     // Click handler for start button
-    this.startButton.addEventListener("click", () => {
+    this.startButton.addEventListener("click", (e) => {
+      e.stopPropagation(); // Prevent click from reaching canvas
       this.startGame();
+
+      // Request pointer lock when game starts (input will be disabled until control is enabled)
+      const canvas = document.querySelector("canvas");
+      if (canvas && canvas.requestPointerLock) {
+        canvas.requestPointerLock();
+      }
     });
 
     // Create options button
@@ -158,7 +165,8 @@ export class StartScreen {
     });
 
     // Click handler for options button
-    this.optionsButton.addEventListener("click", () => {
+    this.optionsButton.addEventListener("click", (e) => {
+      e.stopPropagation(); // Prevent click from reaching canvas
       if (this.uiManager) {
         this.uiManager.show("options-menu");
       }

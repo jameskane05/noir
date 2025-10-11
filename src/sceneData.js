@@ -85,6 +85,22 @@ export const sceneObjects = {
       },
     ],
   },
+
+  radio: {
+    id: "radio",
+    type: "gltf",
+    path: "/gltf/radio-1.glb",
+    description: "Radio GLTF model",
+    position: { x: 10.55, y: -1.03, z: 85.98 },
+    rotation: { x: -2.9661, y: 1.1433, z: 3.1416 },
+    scale: { x: 2.46, y: 2.46, z: 2.46 },
+    options: {
+      useContainer: true,
+    },
+    loadByDefault: true,
+    priority: 50,
+    gizmo: true,
+  },
 };
 
 /**

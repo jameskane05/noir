@@ -11,11 +11,14 @@ import { TransformControls } from "three/examples/jsm/controls/TransformControls
  * - Switch between translate/rotate/scale modes (affects all gizmos)
  * - Log position/rotation/scale on release
  * - Works with meshes, splats, video planes, and colliders
+ * - Spawn gizmos dynamically with P key (when ?gizmo URL param present)
  *
  * Usage:
  * - Set gizmo: true in object data (videoData.js, sceneData.js, colliderData.js, etc.)
  * - Gizmo appears automatically for each enabled object
+ * - Add ?gizmo to URL to enable P key spawning (blocks pointer lock & idle)
  * - Click object to focus it for logging
+ * - P = spawn gizmo 5m in front of camera (only with ?gizmo param)
  * - G = translate, R = rotate, S = scale (all gizmos)
  * - W = world space, L = local space (all gizmos)
  * - H = toggle visibility (all gizmos)
@@ -36,16 +39,21 @@ class GizmoManager {
     this.isGizmoHovering = false;
     this.isVisible = true;
     this.hasGizmoInDefinitions = false; // from data definitions (even if not instantiated)
+    this.hasGizmoURLParam = false; // if gizmo URL param is present
     this.currentMode = "translate"; // Current gizmo mode (applies to all)
     this.currentSpace = "world"; // Current space (applies to all)
     // Integration targets for standardized global effects
     this.idleHelper = null;
     this.inputManager = null;
     this.activeObject = null; // Most recently interacted object
+    this.spawnedGizmoCounter = 0; // Counter for spawned gizmos
 
     // Raycaster for object picking
     this.raycaster = new THREE.Raycaster();
     this.mouse = new THREE.Vector2();
+
+    // Check for gizmo URL parameter
+    this.checkGizmoURLParam();
 
     // Always enable (will only affect objects with gizmo: true)
     this.enable();
@@ -53,6 +61,31 @@ class GizmoManager {
     // Register any already-loaded scene objects if sceneManager provided
     if (sceneManager) {
       this.registerSceneObjects(sceneManager);
+    }
+  }
+
+  /**
+   * Check if gizmo URL parameter is present
+   */
+  checkGizmoURLParam() {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      this.hasGizmoURLParam = urlParams.has("gizmo");
+      console.log("GizmoManager: Checking URL params");
+      console.log("  - URL search string:", window.location.search);
+      console.log("  - Has 'gizmo' param:", this.hasGizmoURLParam);
+      if (this.hasGizmoURLParam) {
+        console.log(
+          "GizmoManager: ✓ gizmo URL parameter detected - P key spawning enabled"
+        );
+      } else {
+        console.log(
+          "GizmoManager: No gizmo URL parameter - P key spawning disabled"
+        );
+      }
+    } catch (e) {
+      console.warn("GizmoManager: Failed to check URL params:", e);
+      this.hasGizmoURLParam = false;
     }
   }
 
@@ -72,7 +105,8 @@ class GizmoManager {
    */
   updateGlobalBlocks() {
     const hasGizmoRuntime = this.objects && this.objects.length > 0;
-    const hasGizmo = this.hasGizmoInDefinitions || hasGizmoRuntime;
+    const hasGizmo =
+      this.hasGizmoInDefinitions || hasGizmoRuntime || this.hasGizmoURLParam;
     if (
       this.idleHelper &&
       typeof this.idleHelper.setGlobalDisable === "function"
@@ -450,7 +484,10 @@ class GizmoManager {
    * Handle keyboard shortcuts (applies to all gizmos)
    */
   handleKeyDown(event) {
-    if (!this.enabled || this.controls.size === 0) return;
+    if (!this.enabled) {
+      console.log("GizmoManager: handleKeyDown called but not enabled");
+      return;
+    }
 
     // Ignore if typing in an input
     if (
@@ -461,7 +498,22 @@ class GizmoManager {
     }
 
     switch (event.key.toLowerCase()) {
+      case "p":
+        console.log(
+          "GizmoManager: P key pressed, hasGizmoURLParam:",
+          this.hasGizmoURLParam
+        );
+        // Spawn gizmo if URL param is present
+        if (this.hasGizmoURLParam) {
+          this.spawnGizmoInFrontOfCamera();
+        } else {
+          console.log(
+            "GizmoManager: P key pressed but gizmo URL param not present"
+          );
+        }
+        break;
       case "g":
+        if (this.controls.size === 0) return;
         this.currentMode = "translate";
         for (const control of this.controls.values()) {
           control.setMode("translate");
@@ -469,6 +521,7 @@ class GizmoManager {
         console.log("GizmoManager: Mode = Translate (all gizmos)");
         break;
       case "r":
+        if (this.controls.size === 0) return;
         this.currentMode = "rotate";
         for (const control of this.controls.values()) {
           control.setMode("rotate");
@@ -476,6 +529,7 @@ class GizmoManager {
         console.log("GizmoManager: Mode = Rotate (all gizmos)");
         break;
       case "s":
+        if (this.controls.size === 0) return;
         this.currentMode = "scale";
         for (const control of this.controls.values()) {
           control.setMode("scale");
@@ -483,6 +537,7 @@ class GizmoManager {
         console.log("GizmoManager: Mode = Scale (all gizmos)");
         break;
       case "w":
+        if (this.controls.size === 0) return;
         this.currentSpace = "world";
         for (const control of this.controls.values()) {
           control.setSpace("world");
@@ -490,6 +545,7 @@ class GizmoManager {
         console.log("GizmoManager: Space = World (all gizmos)");
         break;
       case "l":
+        if (this.controls.size === 0) return;
         this.currentSpace = "local";
         for (const control of this.controls.values()) {
           control.setSpace("local");
@@ -497,6 +553,7 @@ class GizmoManager {
         console.log("GizmoManager: Space = Local (all gizmos)");
         break;
       case "h":
+        if (this.controls.size === 0) return;
         this.setVisible(!this.isVisible);
         console.log(
           `GizmoManager: ${this.isVisible ? "Shown" : "Hidden"} (all gizmos)`
@@ -511,6 +568,44 @@ class GizmoManager {
         }
         break;
     }
+  }
+
+  /**
+   * Spawn a gizmo 5 meters in front of the camera
+   */
+  spawnGizmoInFrontOfCamera() {
+    if (!this.camera) {
+      console.warn("GizmoManager: Cannot spawn gizmo - no camera reference");
+      return;
+    }
+
+    // Create a small sphere mesh to attach the gizmo to
+    const geometry = new THREE.SphereGeometry(0.1, 16, 16);
+    const material = new THREE.MeshBasicMaterial({
+      color: 0xff00ff,
+      wireframe: true,
+    });
+    const sphere = new THREE.Mesh(geometry, material);
+
+    // Calculate position 5 meters in front of camera
+    const cameraDirection = new THREE.Vector3();
+    this.camera.getWorldDirection(cameraDirection);
+
+    const spawnPosition = new THREE.Vector3();
+    spawnPosition.copy(this.camera.position);
+    spawnPosition.addScaledVector(cameraDirection, 5);
+
+    sphere.position.copy(spawnPosition);
+    this.scene.add(sphere);
+
+    // Generate unique ID for this spawned gizmo
+    this.spawnedGizmoCounter++;
+    const gizmoId = `spawned-gizmo-${this.spawnedGizmoCounter}`;
+
+    // Register the sphere with the gizmo manager
+    this.registerObject(sphere, gizmoId, "spawned");
+
+    console.log(`GizmoManager: Spawned gizmo "${gizmoId}" at`, spawnPosition);
   }
 
   /**
