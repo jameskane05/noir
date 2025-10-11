@@ -24,10 +24,11 @@
  *
  * For type "lookat":
  * - position: {x, y, z} world position to look at
- * - duration: Duration of the look-at in seconds (default: 2.0)
- * - restoreControl: If true, restore input controls when complete (default: true)
+ * - duration: Duration of the initial look-at transition in seconds (default: 2.0)
  * - returnToOriginalView: If true, return to original view before restoring control (default: false)
- * - returnDuration: Duration of the return animation in seconds (default: same as duration)
+ * - returnDuration: Duration of the return transition in seconds (default: same as duration)
+ *   Note: Only used if returnToOriginalView is true. Can be different from initial duration.
+ * - restoreControl: If true, restore input controls when complete (default: true)
  * - enableZoom: If true, enable zoom/DoF effect (default: false)
  * - zoomOptions: Optional zoom configuration
  *   - zoomFactor: Camera zoom multiplier (e.g., 2.0 for 2x zoom)
@@ -112,7 +113,8 @@ export const cameraAnimations = {
     type: "lookat",
     description: "Look at cat video when player hears cat sound",
     position: videos.cat.position,
-    duration: 1.25,
+    duration: 1.25, // Initial transition to look at cat
+    returnDuration: 0.8, // Faster return to original view
     returnToOriginalView: true,
     restoreControl: true,
     enableZoom: true,
