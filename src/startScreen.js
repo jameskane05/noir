@@ -195,8 +195,19 @@ export class StartScreen {
    * Create text splats for the start screen
    */
   createTextSplats() {
+    // Create a separate scene for text splats to render on top
+    this.textScene = new THREE.Scene();
+    // Optimized near/far planes for text splats at z: -10 with disperseDistance: 5
+    // This provides much better depth precision and reduces jittering
+    this.textCamera = new THREE.PerspectiveCamera(
+      60,
+      window.innerWidth / window.innerHeight,
+      4.0, // Near plane: text splats can be as close as ~5 units (10 - 5)
+      20.0 // Far plane: text splats can be as far as ~15 units (10 + 5)
+    );
+
     // Create first text splat
-    const textSplat1 = createAnimatedTextSplat(this.scene, {
+    const textSplat1 = createAnimatedTextSplat(this.textScene, {
       text: "THE SHADOW\nof the Czar",
       font: "LePorsche",
       fontSize: 120,
@@ -205,13 +216,14 @@ export class StartScreen {
       scale: 1.0 / 80,
       animate: true,
     });
-    this.scene.remove(textSplat1.mesh);
-    this.camera.add(textSplat1.mesh);
+    this.textScene.remove(textSplat1.mesh);
+    this.textCamera.add(textSplat1.mesh);
+    this.textScene.add(this.textCamera);
     textSplat1.mesh.userData.baseScale = 1.0 / 80;
     textSplat1.mesh.visible = false; // Hide initially
 
     // Create second text splat (positioned below first)
-    const textSplat2 = createAnimatedTextSplat(this.scene, {
+    const textSplat2 = createAnimatedTextSplat(this.textScene, {
       text: "by JAMES C. KANE",
       font: "LePorsche",
       fontSize: 30,
@@ -220,8 +232,8 @@ export class StartScreen {
       scale: 1.0 / 80,
       animate: true,
     });
-    this.scene.remove(textSplat2.mesh);
-    this.camera.add(textSplat2.mesh);
+    this.textScene.remove(textSplat2.mesh);
+    this.textCamera.add(textSplat2.mesh);
     textSplat2.mesh.userData.baseScale = 1.0 / 80;
     textSplat2.mesh.visible = false; // Hide initially
 
@@ -268,6 +280,14 @@ export class StartScreen {
    * @returns {boolean} - True if still active, false if complete
    */
   update(dt) {
+    // Sync text camera with main camera
+    if (this.textCamera) {
+      this.textCamera.position.copy(this.camera.position);
+      this.textCamera.quaternion.copy(this.camera.quaternion);
+      this.textCamera.aspect = this.camera.aspect;
+      this.textCamera.updateProjectionMatrix();
+    }
+
     if (!this.hasStarted) {
       // Circle animation
       this.circleTime += dt * this.circleSpeed;
@@ -400,5 +420,15 @@ export class StartScreen {
    */
   getTitleSequence() {
     return this.titleSequence;
+  }
+
+  /**
+   * Get the text scene and camera for separate rendering
+   */
+  getTextRenderInfo() {
+    return {
+      scene: this.textScene,
+      camera: this.textCamera,
+    };
   }
 }

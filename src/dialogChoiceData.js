@@ -5,13 +5,13 @@
  * This keeps dialog data clean and separates choice configuration.
  *
  * Structure:
- * - triggerDialog: ID of the dialog that triggers this choice moment
+ * - triggerDialog: Dialog object that triggers this choice moment (e.g., dialogTracks.bonneSoiree)
  * - choiceStateKey: The game state key to store the selected response type
  * - prompt: Optional prompt text shown above choices
  * - choices: Array of choice objects:
  *   - text: Button text (what player sees)
  *   - responseType: Response type to store in game state (from DIALOG_RESPONSE_TYPES)
- *   - dialogId: ID of the dialog to play from dialogData.js
+ *   - dialog: Dialog object to play from dialogData.js (e.g., dialogTracks.dialogChoice1Empath)
  * - onSelect: Callback when any choice is selected
  *   - Receives: (gameManager, selectedChoice)
  *   - Should return: object with state updates (e.g., { currentState: GAME_STATES.NEXT })
@@ -19,31 +19,31 @@
  */
 
 import { GAME_STATES, DIALOG_RESPONSE_TYPES } from "./gameData.js";
-import { dialogSequences, DIALOG_IDS } from "./dialogData.js";
+import { dialogTracks } from "./dialogData.js";
 
 export const dialogChoices = {
   // First choice moment - after phone call
   choice1: {
     id: "choice1",
     criteria: { currentState: GAME_STATES.ANSWERED_PHONE },
-    triggerDialog: DIALOG_IDS.BONNE_SOIREE, // Dialog that triggers this choice
+    triggerDialog: dialogTracks.bonneSoiree, // Dialog that triggers this choice
     choiceStateKey: "dialogChoice1",
     prompt: null, // Optional prompt above choices
     choices: [
       {
         text: "Someone who made a mistake.",
         responseType: DIALOG_RESPONSE_TYPES.EMPATH,
-        dialogId: DIALOG_IDS.DIALOG_CHOICE_1_EMPATH,
+        dialog: dialogTracks.dialogChoice1Empath,
       },
       {
         text: "Someone who was never taught better.",
         responseType: DIALOG_RESPONSE_TYPES.PSYCHOLOGIST,
-        dialogId: DIALOG_IDS.DIALOG_CHOICE_1_PSYCHOLOGIST,
+        dialog: dialogTracks.dialogChoice1Psychologist,
       },
       {
         text: "Someone with stolen property.",
         responseType: DIALOG_RESPONSE_TYPES.LAWFUL,
-        dialogId: DIALOG_IDS.DIALOG_CHOICE_1_LAWFUL,
+        dialog: dialogTracks.dialogChoice1Lawful,
       },
     ],
     onSelect: (gameManager, selectedChoice) => {
@@ -57,19 +57,19 @@ export const dialogChoices = {
   // choice2: {
   //   id: "choice2",
   //   criteria: { currentState: GAME_STATES.SOME_OTHER_STATE },
-  //   triggerDialog: "someOtherDialog",
+  //   triggerDialog: dialogTracks.someOtherDialog,
   //   choiceStateKey: "dialogChoice2",
   //   prompt: "What do you do?",
   //   choices: [
   //     {
   //       text: "Option A",
   //       responseType: "optionA",
-  //       dialogId: "optionAResponse",
+  //       dialog: dialogTracks.optionAResponse,
   //     },
   //     {
   //       text: "Option B",
   //       responseType: "optionB",
-  //       dialogId: "optionBResponse",
+  //       dialog: dialogTracks.optionBResponse,
   //     },
   //   ],
   //   onSelect: (gameManager, selectedChoice) => {
@@ -81,12 +81,19 @@ export const dialogChoices = {
 
 /**
  * Get choice configuration for a specific dialog
- * @param {string} dialogId - Dialog ID that just completed
+ * @param {Object|string} dialog - Dialog object or dialog ID that just completed
  * @returns {Object|null} Choice configuration or null if no choices
  */
-export function getChoiceForDialog(dialogId) {
+export function getChoiceForDialog(dialog) {
+  const dialogId = typeof dialog === "string" ? dialog : dialog?.id;
+
   for (const choice of Object.values(dialogChoices)) {
-    if (choice.triggerDialog === dialogId) {
+    const triggerDialogId =
+      typeof choice.triggerDialog === "string"
+        ? choice.triggerDialog
+        : choice.triggerDialog?.id;
+
+    if (triggerDialogId === dialogId) {
       return choice;
     }
   }
@@ -105,7 +112,7 @@ export function buildChoiceData(choiceConfig) {
     choices: choiceConfig.choices.map((choice) => ({
       text: choice.text,
       responseType: choice.responseType,
-      responseDialog: dialogSequences[choice.dialogId] || null,
+      responseDialog: choice.dialog || null,
       onSelect: choiceConfig.onSelect, // Use the shared onSelect from config
     })),
   };

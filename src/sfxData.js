@@ -227,11 +227,7 @@ export const sfxSounds = {
     volume: 0.4,
     loop: true,
     spatial: true,
-    position: {
-      x: sceneObjects.radio.position.x,
-      y: sceneObjects.radio.position.y + 0.5, // Slightly above the radio
-      z: sceneObjects.radio.position.z,
-    },
+    position: sceneObjects.radio.position,
     pannerAttr: {
       panningModel: "HRTF",
       refDistance: 5,
@@ -247,7 +243,7 @@ export const sfxSounds = {
     reactiveLight: {
       enabled: true,
       type: "PointLight",
-      color: 0xffa500, // Warm orange glow for vintage radio
+      color: 0xfff, // Warm orange glow for vintage radio
       position: { x: 0, y: 1.2, z: 0 }, // Offset from sound position (above radio)
       baseIntensity: 5.0, // Subtle ambient glow when quiet
       reactivityMultiplier: 30.0, // React to music dynamics

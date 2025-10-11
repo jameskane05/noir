@@ -456,4 +456,14 @@ renderer.setAnimationLoop(function animate(time) {
   //lightingSystem.updateFlickering(t);
 
   renderer.render(scene, camera);
+
+  // Render text splats on top (separate scene for title sequence)
+  if (startScreen && startScreen.getTextRenderInfo) {
+    const textInfo = startScreen.getTextRenderInfo();
+    if (textInfo && textInfo.scene && textInfo.camera) {
+      renderer.autoClear = false;
+      renderer.render(textInfo.scene, textInfo.camera);
+      renderer.autoClear = true;
+    }
+  }
 });

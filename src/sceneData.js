@@ -99,7 +99,6 @@ export const sceneObjects = {
     },
     loadByDefault: true,
     priority: 50,
-    gizmo: true,
   },
 };
 

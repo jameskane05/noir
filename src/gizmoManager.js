@@ -22,6 +22,7 @@ import { TransformControls } from "three/examples/jsm/controls/TransformControls
  * - G = translate, R = rotate, S = scale (all gizmos)
  * - W = world space, L = local space (all gizmos)
  * - H = toggle visibility (all gizmos)
+ * - F = cycle through gizmos and teleport character 5m in front of each
  * - Drag any gizmo to manipulate, release to log position
  */
 class GizmoManager {
@@ -47,6 +48,7 @@ class GizmoManager {
     this.inputManager = null;
     this.activeObject = null; // Most recently interacted object
     this.spawnedGizmoCounter = 0; // Counter for spawned gizmos
+    this.currentGizmoIndex = 0; // For cycling through gizmos with F key
 
     // Raycaster for object picking
     this.raycaster = new THREE.Raycaster();
@@ -559,6 +561,9 @@ class GizmoManager {
           `GizmoManager: ${this.isVisible ? "Shown" : "Hidden"} (all gizmos)`
         );
         break;
+      case "f":
+        this.cycleAndTeleportToNextGizmo();
+        break;
       case "escape":
         if (this.activeObject) {
           console.log(
@@ -606,6 +611,99 @@ class GizmoManager {
     this.registerObject(sphere, gizmoId, "spawned");
 
     console.log(`GizmoManager: Spawned gizmo "${gizmoId}" at`, spawnPosition);
+  }
+
+  /**
+   * Cycle to next gizmo and teleport character to it
+   */
+  cycleAndTeleportToNextGizmo() {
+    if (this.objects.length === 0) {
+      console.log("GizmoManager: No gizmo objects available");
+      return;
+    }
+
+    if (this.objects.length === 1) {
+      // Only one gizmo, just teleport to it
+      this.activeObject = this.objects[0];
+      this.teleportCharacterToObject(this.objects[0]);
+      return;
+    }
+
+    // Multiple gizmos - cycle through them
+    this.currentGizmoIndex = (this.currentGizmoIndex + 1) % this.objects.length;
+    const nextGizmo = this.objects[this.currentGizmoIndex];
+    this.activeObject = nextGizmo;
+
+    console.log(
+      `GizmoManager: Cycling to gizmo ${this.currentGizmoIndex + 1}/${
+        this.objects.length
+      } ("${nextGizmo.id}")`
+    );
+
+    this.teleportCharacterToObject(nextGizmo);
+  }
+
+  /**
+   * Teleport character to 5 meters in front of an object
+   * @param {Object} item - Gizmo item with object reference
+   */
+  teleportCharacterToObject(item) {
+    if (!item || !item.object) {
+      console.warn("GizmoManager: Cannot teleport - no object specified");
+      return;
+    }
+
+    // Get character controller and physics manager from window globals
+    const characterController = window.characterController;
+    const physicsManager = characterController?.physicsManager;
+
+    if (!characterController) {
+      console.warn(
+        "GizmoManager: Cannot teleport - character controller not found"
+      );
+      return;
+    }
+
+    const obj = item.object;
+
+    // Calculate the object's forward direction (-Z in local space)
+    const forward = new THREE.Vector3(0, 0, -1);
+    forward.applyQuaternion(obj.quaternion);
+    forward.normalize();
+
+    // Calculate position 5 meters in front of object
+    const teleportPosition = new THREE.Vector3();
+    teleportPosition.copy(obj.position);
+    teleportPosition.addScaledVector(forward, 5);
+
+    // Ensure Y position is at least 0.9 (character controller minimum height)
+    teleportPosition.y = Math.max(0.9, teleportPosition.y);
+
+    // Teleport character controller
+    if (characterController.character) {
+      const character = characterController.character;
+
+      // Update character position (physics body)
+      character.setTranslation(
+        {
+          x: teleportPosition.x,
+          y: teleportPosition.y,
+          z: teleportPosition.z,
+        },
+        true
+      );
+
+      console.log(
+        `GizmoManager: Teleported character to 5m in front of "${item.id}"`
+      );
+      console.log(`  Object position:`, obj.position);
+      console.log(`  Object forward:`, forward);
+      console.log(`  Teleport position:`, teleportPosition);
+    } else {
+      console.warn(
+        "GizmoManager: Cannot teleport - character physics body not found"
+      );
+    }
   }
 
   /**

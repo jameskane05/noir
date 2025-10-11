@@ -22,33 +22,18 @@
  * Note: For multiple choice dialogs, see dialogChoiceData.js
  *
  * Usage:
- * import { dialogSequences, getDialogForState } from './dialogData.js';
- * dialogManager.playDialog(dialogSequences.intro);
+ * import { dialogTracks } from './dialogData.js';
+ * dialogManager.playDialog(dialogTracks.intro);
+ * // or in dialogChoiceData.js:
+ * triggerDialog: dialogTracks.bonneSoiree
  */
 
 import { GAME_STATES, DIALOG_RESPONSE_TYPES } from "./gameData.js";
 import { checkCriteria } from "./criteriaHelper.js";
 
-/**
- * Dialog IDs - Numeric constants for type safety
- */
-export const DIALOG_IDS = {
-  INTRO: 0,
-  OKAY_I_CAN_TAKE_A_HINT: 1,
-  BONNE_SOIREE: 2,
-  DIALOG_CHOICE_1_EMPATH: 3,
-  DIALOG_CHOICE_1_PSYCHOLOGIST: 4,
-  DIALOG_CHOICE_1_LAWFUL: 5,
-  DIALOG_CHOICE_1_EMPATH_RESPONSE: 6,
-  DIALOG_CHOICE_1_PSYCHOLOGIST_RESPONSE: 7,
-  DIALOG_CHOICE_1_LAWFUL_RESPONSE: 8,
-  THEYRE_HERE_FOR_YOU: 9,
-  DRIVE_BY_PREAMBLE: 10,
-};
-
-export const dialogSequences = {
-  [DIALOG_IDS.INTRO]: {
-    id: DIALOG_IDS.INTRO,
+export const dialogTracks = {
+  intro: {
+    id: "intro",
     audio: "./audio/dialog/00-on-her-trail.mp3",
     captions: [
       { text: "I'd been on her trail for weeks.", duration: 2.0 },
@@ -86,8 +71,8 @@ export const dialogSequences = {
   },
 
   // Dialog that plays when phone starts ringing
-  [DIALOG_IDS.OKAY_I_CAN_TAKE_A_HINT]: {
-    id: DIALOG_IDS.OKAY_I_CAN_TAKE_A_HINT,
+  okayICanTakeAHint: {
+    id: "okayICanTakeAHint",
     audio: "./audio/dialog/01-okay-i-can-take-a-hint.mp3",
     captions: [{ text: "Okay, I can take a hint.", duration: 2.0 }],
     criteria: { currentState: GAME_STATES.PHONE_BOOTH_RINGING },
@@ -98,8 +83,8 @@ export const dialogSequences = {
   },
 
   // Dialog that triggers first choice moment
-  [DIALOG_IDS.BONNE_SOIREE]: {
-    id: DIALOG_IDS.BONNE_SOIREE,
+  bonneSoiree: {
+    id: "bonneSoiree",
     audio: "./audio/dialog/02-bonne-soiree.mp3",
     captions: [
       { text: "Bonne soirée...", duration: 1.5 },
@@ -113,8 +98,8 @@ export const dialogSequences = {
   },
 
   // Follow-up dialog for EMPATH response
-  [DIALOG_IDS.DIALOG_CHOICE_1_EMPATH]: {
-    id: DIALOG_IDS.DIALOG_CHOICE_1_EMPATH,
+  dialogChoice1Empath: {
+    id: "dialogChoice1Empath",
     audio: "./audio/dialog/choice-1_empath_someone-who-made-a-mistake.mp3",
     captions: [
       { text: "Someone who made a little mistake, that's all.", duration: 2.5 },
@@ -134,8 +119,8 @@ export const dialogSequences = {
   },
 
   // Follow-up dialog for PSYCHOLOGIST response
-  [DIALOG_IDS.DIALOG_CHOICE_1_PSYCHOLOGIST]: {
-    id: DIALOG_IDS.DIALOG_CHOICE_1_PSYCHOLOGIST,
+  dialogChoice1Psychologist: {
+    id: "dialogChoice1Psychologist",
     audio:
       "./audio/dialog/choice-1_psych_someone-who-was-never-taught-better.mp3",
     captions: [
@@ -159,8 +144,8 @@ export const dialogSequences = {
   },
 
   // Follow-up dialog for LAWFUL response
-  [DIALOG_IDS.DIALOG_CHOICE_1_LAWFUL]: {
-    id: DIALOG_IDS.DIALOG_CHOICE_1_LAWFUL,
+  dialogChoice1Lawful: {
+    id: "dialogChoice1Lawful",
     audio: "./audio/dialog/choice-1_lawful_someone-with-stolen-property.mp3",
     captions: [
       {
@@ -184,8 +169,8 @@ export const dialogSequences = {
   },
 
   // PETIT's responses to player's dialog choices
-  [DIALOG_IDS.DIALOG_CHOICE_1_EMPATH_RESPONSE]: {
-    id: DIALOG_IDS.DIALOG_CHOICE_1_EMPATH_RESPONSE,
+  dialogChoice1EmpathResponse: {
+    id: "dialogChoice1EmpathResponse",
     audio: "./audio/dialog/resp-1_empath_oui-and-ive-made-so-many.mp3",
     captions: [{ text: "Oui, and I've made *so* many.", duration: 2.5 }],
     criteria: {
@@ -203,8 +188,8 @@ export const dialogSequences = {
     },
   },
 
-  [DIALOG_IDS.DIALOG_CHOICE_1_PSYCHOLOGIST_RESPONSE]: {
-    id: DIALOG_IDS.DIALOG_CHOICE_1_PSYCHOLOGIST_RESPONSE,
+  dialogChoice1PsychologistResponse: {
+    id: "dialogChoice1PsychologistResponse",
     audio: "./audio/dialog/resp-1_psych_im-sure-youll-educate-me.mp3",
     captions: [{ text: "I'm sure you will educate me...", duration: 2.0 }],
     criteria: {
@@ -222,8 +207,8 @@ export const dialogSequences = {
     },
   },
 
-  [DIALOG_IDS.DIALOG_CHOICE_1_LAWFUL_RESPONSE]: {
-    id: DIALOG_IDS.DIALOG_CHOICE_1_LAWFUL_RESPONSE,
+  dialogChoice1LawfulResponse: {
+    id: "dialogChoice1LawfulResponse",
     audio: "./audio/dialog/resp-1_lawful_hm-quite-the-lawman-you-are.mp3",
     captions: [{ text: "Hm, quite the lawman you are.", duration: 2.0 }],
     criteria: {
@@ -242,8 +227,8 @@ export const dialogSequences = {
   },
 
   // Warning dialog after PETIT's response
-  [DIALOG_IDS.THEYRE_HERE_FOR_YOU]: {
-    id: DIALOG_IDS.THEYRE_HERE_FOR_YOU,
+  theyreHereForYou: {
+    id: "theyreHereForYou",
     audio: "./audio/dialog/04-theyre-here-for-you-duck-and-cover-now.mp3",
     captions: [
       { text: "They're here for you!", duration: 1.65 },
@@ -263,8 +248,8 @@ export const dialogSequences = {
   },
 
   // PETIT's final warning before drive-by
-  // [DIALOG_IDS.DRIVE_BY_PREAMBLE]: {
-  //   id: DIALOG_IDS.DRIVE_BY_PREAMBLE,
+  // driveByPreamble: {
+  //   id: "driveByPreamble",
   //   audio: "./audio/dialog/00-oui-you-know-him.mp3",
   //   captions: [
   //     { text: "Oui, you know him.", duration: 2.0 },
@@ -306,7 +291,7 @@ export const dialogSequences = {
  */
 export function getDialogsForState(gameState, playedDialogs = new Set()) {
   // Convert to array and filter for autoPlay dialogs only
-  const autoPlayDialogs = Object.values(dialogSequences).filter(
+  const autoPlayDialogs = Object.values(dialogTracks).filter(
     (dialog) => dialog.autoPlay === true
   );
 
@@ -337,7 +322,7 @@ export function getDialogsForState(gameState, playedDialogs = new Set()) {
   return matchingDialogs;
 }
 
-export default dialogSequences;
+export default dialogTracks;
 
 // { text: "I didn't paint those paintings!", duration: 2.0 },
 // { text: "And I just saved your life!", duration: 3.5 },
