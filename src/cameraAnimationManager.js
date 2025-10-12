@@ -26,6 +26,13 @@ class CameraAnimationManager {
     this.frameIdx = 1;
     this.onComplete = null;
 
+    // Pre-animation slerp state (to reset pitch to 0 while keeping yaw)
+    this.isPreSlerping = false;
+    this.preSlerpStartQuat = new THREE.Quaternion();
+    this.preSlerpTargetQuat = new THREE.Quaternion(); // Will be set to zero pitch + current yaw
+    this.preSlerpElapsed = 0;
+    this.preSlerpDuration = 0.3; // 300ms quick slerp to level horizon
+
     // Base pose (where animation starts from)
     this.baseQuat = new THREE.Quaternion();
     this.basePos = new THREE.Vector3();
@@ -129,10 +136,10 @@ class CameraAnimationManager {
       newState
     );
 
-    // Don't interrupt currently playing animation
-    if (this.isPlaying) {
+    // Don't interrupt currently playing animation or pre-slerp phase
+    if (this.isPlaying || this.isPreSlerping) {
       console.log(
-        `CameraAnimationManager: Animation already playing, skipping`
+        `CameraAnimationManager: Animation already playing or pre-slerping, skipping`
       );
       return;
     }
@@ -455,25 +462,55 @@ class CameraAnimationManager {
       return false;
     }
 
-    // Capture current camera pose as base
-    this.baseQuat.copy(this.camera.quaternion);
-    this.basePos.copy(this.camera.position);
-
-    // Disable character controller
+    // Disable character controller immediately
     if (this.characterController) {
       this.characterController.disableInput();
     }
 
-    // Start playback
+    // Start pre-slerp phase to reset pitch to 0 while preserving yaw
+    // This ensures consistent vertical results regardless of initial look direction
+    this.preSlerpStartQuat.copy(this.camera.quaternion);
+
+    // Extract current yaw, set pitch to 0
+    const euler = new THREE.Euler().setFromQuaternion(
+      this.camera.quaternion,
+      "YXZ"
+    );
+    const targetEuler = new THREE.Euler(0, euler.y, 0, "YXZ"); // pitch=0, keep yaw, roll=0
+    this.preSlerpTargetQuat.setFromEuler(targetEuler);
+
+    this.preSlerpElapsed = 0;
+    this.isPreSlerping = true;
+
+    // Store animation data for when pre-slerp completes
     this.currentAnimation = anim;
     this.currentAnimationData = animData;
+    this.onComplete = onComplete;
+    this.isPlaying = false; // Not playing actual animation yet
+
+    console.log(
+      `CameraAnimationManager: Pre-slerping to zero pitch (keeping yaw) before playing '${name}'`
+    );
+    return true;
+  }
+
+  /**
+   * Start the actual animation playback (called after pre-slerp completes)
+   * @private
+   */
+  _startAnimationPlayback() {
+    // Capture current camera pose as base (should now be at zero pitch)
+    this.baseQuat.copy(this.camera.quaternion);
+    this.basePos.copy(this.camera.position);
+
+    // Reset playback state
     this.elapsed = 0;
     this.frameIdx = 1;
     this.isPlaying = true;
-    this.onComplete = onComplete;
 
-    console.log(`CameraAnimationManager: Playing '${name}'`);
-    return true;
+    console.log(
+      `CameraAnimationManager: Starting animation playback from level horizon (pitch=0)`
+    );
   }
 
   /**
@@ -482,6 +519,17 @@ class CameraAnimationManager {
    * @param {boolean} restoreInput - If true, restore input controls (can be overridden by animData)
    */
   stop(syncController = true, restoreInput = true) {
+    // Stop pre-slerp if active
+    if (this.isPreSlerping) {
+      this.isPreSlerping = false;
+      this.currentAnimation = null;
+      this.currentAnimationData = null;
+      if (this.characterController && restoreInput) {
+        this.characterController.enableInput();
+      }
+      return;
+    }
+
     if (!this.isPlaying) return;
 
     // Use animData config if available
@@ -563,13 +611,38 @@ class CameraAnimationManager {
    * @param {number} dt - Delta time in seconds
    */
   update(dt) {
+    // Handle pre-slerp phase (reset camera to neutral orientation before animation)
+    if (this.isPreSlerping) {
+      this.preSlerpElapsed += dt;
+      const t = Math.min(1, this.preSlerpElapsed / this.preSlerpDuration);
+
+      // Use eased interpolation for smoother transition
+      const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; // easeInOutQuad
+
+      // Slerp camera rotation to neutral
+      this.camera.quaternion
+        .copy(this.preSlerpStartQuat)
+        .slerp(this.preSlerpTargetQuat, eased);
+
+      // Check if slerp is complete
+      if (t >= 1) {
+        this.isPreSlerping = false;
+        this._startAnimationPlayback();
+      }
+      return; // Don't process other updates during pre-slerp
+    }
+
     // Update pending delayed animations
     if (this.pendingAnimations.size > 0) {
       for (const [animId, pending] of this.pendingAnimations) {
         pending.timer += dt;
 
         // Check if delay has elapsed and no animation is currently playing
-        if (pending.timer >= pending.delay && !this.isPlaying) {
+        if (
+          pending.timer >= pending.delay &&
+          !this.isPlaying &&
+          !this.isPreSlerping
+        ) {
           console.log(
             `CameraAnimationManager: Playing delayed animation "${animId}"`
           );
@@ -678,11 +751,11 @@ class CameraAnimationManager {
   }
 
   /**
-   * Check if an animation is currently playing
+   * Check if an animation is currently playing (includes pre-slerp phase)
    * @returns {boolean}
    */
   get playing() {
-    return this.isPlaying;
+    return this.isPlaying || this.isPreSlerping;
   }
 
   /**

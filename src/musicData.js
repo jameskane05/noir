@@ -28,7 +28,9 @@ export const musicTracks = {
     id: "rach2",
     path: "./audio/music/rach 3 - mv 2 - 1-00.mp3",
     description: "Rachmaninoff 3 - Movement 2 (1:00) - Intro sequence",
-    criteria: { $gt: GAME_STATES.START_SCREEN },
+    criteria: {
+      currentState: GAME_STATES.START_SCREEN,
+    },
     fadeTime: 2.0,
     priority: 100,
   },
@@ -40,17 +42,17 @@ export const musicTracks = {
     fadeTime: 1.0,
     priority: 90,
   },
-  // rach1: {
-  //   id: "rach1",
-  //   path: "./audio/music/rach 3 - mv 1 - 0-40.mp3",
-  //   description: "Rachmaninoff 3 - Movement 1 (0:00-0:40) - Main gameplay",
-  //   // Play when currentState progresses beyond START_SCREEN
-  //   criteria: {
-  //     currentState: { $gt: GAME_STATES.START_SCREEN },
-  //   },
-  //   fadeTime: 0.25,
-  //   priority: 10,
-  // },
+  rach1: {
+    id: "rach1",
+    path: "./audio/music/rach 3 - mv 1 - 0-40.mp3",
+    description: "Rachmaninoff 3 - Movement 1 (0:00-0:40) - Main gameplay",
+    // Play when currentState progresses beyond START_SCREEN
+    criteria: {
+      currentState: { $gt: GAME_STATES.START_SCREEN },
+    },
+    fadeTime: 0.25,
+    priority: 10,
+  },
 };
 
 /**
